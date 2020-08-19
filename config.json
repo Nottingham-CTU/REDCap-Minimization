@@ -1,0 +1,179 @@
+{
+	"name" : "Minimization",
+	"namespace" : "Nottingham\\Minimization",
+	"description" : "Randomize participants with a minimization algorithm.",
+	"authors": [
+		{
+			"name": "Richard Dooley",
+			"email": "richard.dooley@nottingham.ac.uk",
+			"institution": "University of Nottingham"
+		}
+	],
+	"permissions" : [],
+	"framework-version" : 3,
+	"compatibility" : { "redcap-version-min" : "9.6.5" },
+	"project-settings" : [
+		{
+			"key" : "rando-event",
+			"name" : "Randomization event",
+			"type" : "event-list"
+		},
+		{
+			"key" : "rando-field",
+			"name" : "Randomization field",
+			"type" : "field-list"
+		},
+		{
+			"key" : "bogus-field",
+			"name" : "Field to store a fake randomization allocation<br>e.g. for blinded extracts<br>(optional)",
+			"type" : "field-list"
+		},
+		{
+			"key" : "diag-field",
+			"name" : "Field to store diagnostic output for the randomization<br>(optional)",
+			"type" : "field-list"
+		},
+		{
+			"key" : "space1",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "stratify",
+			"name" : "Use stratification variables",
+			"type" : "checkbox"
+		},
+		{
+			"key" : "stratification",
+			"name" : "Stratification variable",
+			"type" : "sub_settings",
+			"branchingLogic" : { "field" : "stratify", "value" : true },
+			"repeatable" : true,
+			"sub_settings" : [
+				{
+					"key" : "strat-event",
+					"name" : "Event",
+					"type" : "event-list"
+				},
+				{
+					"key" : "strat-field",
+					"name" : "Field",
+					"type" : "field-list"
+				}
+			]
+		},
+		{
+			"key" : "space2",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "mode-variable",
+			"name" : "Use multiple minimization modes",
+			"type" : "checkbox"
+		},
+		{
+			"key" : "mode-event",
+			"name" : "Minimization mode event",
+			"type" : "event-list",
+			"branchingLogic" : { "field" : "mode-variable", "value" : true }
+		},
+		{
+			"key" : "mode-field",
+			"name" : "Minimization mode field",
+			"type" : "field-list",
+			"branchingLogic" : { "field" : "mode-variable", "value" : true }
+		},
+		{
+			"key" : "space3",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "mode",
+			"name" : "Minimization mode",
+			"type" : "sub_settings",
+			"repeatable" : true,
+			"sub_settings" : [
+				{
+					"key" : "minim-mode",
+					"name" : "Minimization mode value",
+					"type" : "text",
+					"branchingLogic" : { "field" : "mode-variable", "value" : true }
+				},
+				{
+					"key" : "minim-codes",
+					"name" : "Randomization allocation",
+					"type" : "sub_settings",
+					"repeatable" : true,
+					"sub_settings" : [
+						{
+							"key" : "rando-code",
+							"name" : "Allocation code",
+							"type" : "text"
+						},
+						{
+							"key" : "rando-desc",
+							"name" : "Allocation description",
+							"type" : "text"
+						},
+						{
+							"key" : "rando-ratio",
+							"name" : "Allocation ratio",
+							"type" : "text"
+						}
+					]
+				},
+				{
+					"key" : "minim-vars",
+					"name" : "Minimization variable",
+					"type" : "sub_settings",
+					"repeatable" : true,
+					"sub_settings" : [
+						{
+							"key" : "minim-event",
+							"name" : "Event",
+							"type" : "event-list"
+						},
+						{
+							"key" : "minim-field",
+							"name" : "Field",
+							"type" : "field-list"
+						}
+					]
+				}
+			]
+		},
+		{
+			"key" : "space4",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "rando-submit-form",
+			"name" : "Automatically randomize on submission of form<br>(optional, must click to randomize if not selected)",
+			"type" : "form-list"
+		},
+		{
+			"key" : "space5",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "random-factor",
+			"name" : "Random factor<br>(optional)",
+			"type" : "dropdown",
+			"choices" : [
+				{ "value" : "S", "name" : "Skip allocation (once)" },
+				{ "value" : "C", "name" : "Skip allocation (compounding)" },
+				{ "value" : "R", "name" : "Allocate randomly" }
+			]
+		},
+		{
+			"key" : "random-percent",
+			"name" : "% of randomizations to use the random factor",
+			"type" : "text",
+			"branchingLogic" : { "field" : "random-factor", "op" : "<>", "value" : "" }
+		}
+	]
+}
