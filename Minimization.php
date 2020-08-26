@@ -11,7 +11,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$randoField = $this->getProjectSetting( 'rando-field' );
 		if ( $randoEvent == '' || $randoField == '' )
 		{
-			return false;
+			return 'Randomization not enabled. The randomization event and field must be defined.';
 		}
 
 		// Get all the records for the project.
@@ -24,11 +24,29 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( ! isset( $listRecords[$newRecordID] ) ||
 		     $listRecords[$newRecordID][$randoEvent][$randoField] != '' )
 		{
-			return false;
+			return 'Randomization already performed for this record.';
 		}
 		$infoNewRecord = $listRecords[$newRecordID];
 
 		// Remove unrandomized records from the list and perform stratification.
+		$randoNum = 1;
+		if ( $this->getProjectSetting( 'stratify' ) )
+		{
+			$listStratEvents = $this->getProjectSetting( 'strat-event' );
+			$listStratFields = $this->getProjectSetting( 'strat-field' );
+			$listStratValues = [];
+			for ( $i = 0; $i < count($listStratEvents); $i++ )
+			{
+				$stratEvent = $listStratEvents[$i];
+				$stratField = $listStratFields[$i];
+				if ( $infoNewRecord[$stratEvent][$stratField] == '' )
+				{
+					return "Stratification variable $stratField missing.";
+				}
+				$listStratValues[$stratEvent][$stratField] =
+						$infoNewRecord[$stratEvent][$stratField];
+			}
+		}
 		foreach ( $listRecords as $recordID => $infoRecord )
 		{
 			if ( $recordID == $newRecordID || $infoRecord[$randoEvent][$randoField] == '' )
@@ -36,10 +54,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				unset( $listRecords[$recordID] );
 				continue;
 			}
+			$randoNum++;
 			if ( $this->getProjectSetting( 'stratify' ) )
 			{
-				$listStratEvents = $this->getProjectSetting( 'strat-event' );
-				$listStratFields = $this->getProjectSetting( 'strat-field' );
 				for ( $i = 0; $i < count($listStratEvents); $i++ )
 				{
 					$stratEvent = $listStratEvents[$i];
@@ -75,7 +92,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		if ( $minMode < 0 )
 		{
-			return false;
+			return "Minimization mode variable $modeField missing.";
 		}
 
 		// Get the randomization codes and ratios.
@@ -92,20 +109,223 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$listCodeRatios[ $listRandoCodes[$i] ] = $listRandoRatios[$i];
 			$listCodeDescriptions[ $listRandoCodes[$i] ] = $listRandoDescs[$i];
 		}
-		return [ $listCodeRatios, $listCodeDescriptions ];
 
 		// Get minimization field values for the record to randomize.
-		// TODO
+		$listAllMinEvents = $this->getProjectSetting( 'minim-event' );
+		$listMinEvents = $listAllMinEvents[$minMode];
+		$listAllMinFields = $this->getProjectSetting( 'minim-field' );
+		$listMinFields = $listAllMinFields[$minMode];
+		$listNewMinValues = [];
+		for ( $i = 0; $i < count( $listMinFields ); $i++ )
+		{
+			$minEvent = $listMinEvents[$i];
+			$minField = $listMinFields[$i];
+			$minValue = $infoNewRecord[$minEvent][$minField];
+			if ( $minValue == '' )
+			{
+				return "Minimization variable $minField missing.";
+			}
+			$listNewMinValues[$minEvent][$minField] = $minValue;
+		}
 
 		// Calculate the minimization totals using the minimization field values for the existing
 		// records.
-		// TODO
+		$listMinTotals = [];
+		$listMinFieldTotals = [];
+		foreach ( $listRandoCodes as $code )
+		{
+			// Prepare the minimization totals, both the overall totals for each allocation code
+			// used for minimization, and the per-field totals for diagnostic output.
+			$listMinTotals[$code] = 0;
+			$listMinFieldTotals[$code] = [];
+			for ( $i = 0; $i < count( $listMinFields ); $i++ )
+			{
+				$minEvent = $listMinEvents[$i];
+				$minField = $listMinFields[$i];
+				$listMinFieldTotals[$code][$minEvent][$minField] = 0;
+			}
+		}
+		foreach ( $listRecords as $infoRecord )
+		{
+			// Get the existing record's randomization allocation.
+			$existingCode = $infoRecord[$randoEvent][$randoField];
+			for ( $i = 0; $i < count( $listMinFields ); $i++ )
+			{
+				// Increment the minimization totals where the minimization field value on the new
+				// and existing records match.
+				$minEvent = $listMinEvents[$i];
+				$minField = $listMinFields[$i];
+				$minValue = $infoRecord[$minEvent][$minField];
+				$newMinValue = $listNewMinValues[$minEvent][$minField];
+				if ( $minValue == $newMinValue )
+				{
+					$listMinTotals[$existingCode]++;
+					$listMinFieldTotals[$existingCode][$minEvent][$minField]++;
+				}
+			}
+		}
 
-		// Divide the minimization totals by the allocation ratio.
-		// TODO
+		// Divide the minimization totals by the allocation ratio, and sort lowest to highest.
+		// Minimization totals are multiplied by the lowest common multiple of the allocation ratios
+		// first, so the values following division are still integers.
+		// If two totals are equal, sort randomly.
+		$ratioCommonMultiple =
+			array_reduce( $listCodeRatios, function ( $carry, $item )
+			{
+				if ( $carry == 0 )
+				{
+					return $item;
+				}
+				else
+				{
+					if ( $carry > $item )
+					{
+						$a = $carry;
+						$b = $item;
+					}
+					else
+					{
+						$a = $item;
+						$b = $carry;
+					}
+					while ( $b != 0 )
+					{
+						$c = $b;
+						$b = $a % $b;
+						$a = $c;
+					}
+					return ( $carry * $item ) / $a;
+				}
+			}, 0 );
+		$listAdjustedTotals = [];
+		foreach ( $listMinTotals as $code => $total )
+		{
+			$listAdjustedTotals[$code] = ( $total * $ratioCommonMultiple ) / $listCodeRatios[$code];
+		}
+		uasort( $listAdjustedTotals, function( $a, $b )
+		{
+			if ( $a == $b )
+			{
+				return random_int( 0, 1 ) ? -1 : 1;
+			}
+			return ( $a < $b ) ? -1 : 1;
+		});
+
+		// Perform the randomization.
+		$listAdjustedCodes = array_keys( $listAdjustedTotals );
+		$randoCode = array_shift( $listAdjustedCodes );
+		$randomFactor = $this->getProjectSetting( 'random-factor' );
+		$randomPercent = $this->getProjectSetting( 'random-percent' );
+		$randomApplied = 'none';
+		$listRandoProportional = [];
+		foreach ( $listCodeRatios as $code => $ratio )
+		{
+			$listRandoProportional =
+					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
+		}
+		if ( $randomFactor == 'S' || $randomFactor == 'C' )
+		{
+			// Based on the random percentage, skip an allocation either once or 'compounding'
+			// (i.e. random-percent of random-percent times, skip two allocations, and so on...)
+			$randomApplied = '';
+			$testPercent = random_int( 0, 1000000 ) / 10000;
+			while ( $testPercent < $randomPercent && count( $listAdjustedCodes ) > 0 )
+			{
+				$randomApplied .= ( $randomApplied == '' ) ? '' : '; ';
+				$randomApplied .= 'random value (' . $testPercent . ') < ' . $randomPercent .
+				                  ', allocation ' . $randoCode . ' skipped';
+				$randoCode = array_shift( $listAdjustedCodes );
+				if ( $randomFactor == 'S' )
+				{
+					break;
+				}
+				$testPercent = random_int( 0, 1000000 ) / 10000;
+			}
+			if ( $randomApplied == '' || $randomFactor == 'C' )
+			{
+				$randomApplied .= ( $randomApplied == '' ) ? '' : '; ';
+				$randomApplied .= 'random value (' . $testPercent . ') >= ' . $randomPercent .
+				                  ', minimized allocation used';
+			}
+		}
+		elseif ( $randomFactor == 'R' )
+		{
+			$testPercent = random_int( 0, 1000000 ) / 10000;
+			if ( $testPercent < $randomPercent )
+			{
+				$randomApplied = 'random value (' . $testPercent . ') < ' . $randomPercent .
+				                 ', allocation chosen randomly';
+				$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
+				$randoCode = $listRandoProportional[$randoValue];
+				$randomApplied .= ' (' . $randoValue . ')';
+			}
+			else
+			{
+				$randomApplied = 'random value (' . $testPercent . ') >= ' . $randomPercent .
+				                 ', minimized allocation used';
+			}
+		}
 
 		// Perform a fake randomization if required.
-		// TODO
+		$bogusField = $this->getProjectSetting( 'bogus-field' );
+		if ( $bogusField != '' )
+		{
+			$bogusValue = random_int( 0, count( $listRandoProportional ) - 1 );
+			$bogusCode = $listRandoProportional[$bogusValue];
+		}
+
+		// Generate the diagnostic information if required.
+		$diagField = $this->getProjectSetting( 'diag-field' );
+		if ( $diagField != '' )
+		{
+			$diagData = [ 'num' => $randoNum,
+			              'stratify' => ( $this->getProjectSetting( 'stratify' ) ? true : false ) ];
+			if ( $diagData['stratify'] )
+			{
+				$diagData['strata_values'] = $listStratValues;
+				$diagData['strata_records'] = array_keys( $listRecords );
+			}
+			$diagData['minim_multi'] = $this->getProjectSetting( 'mode-variable' ) ? true : false;
+			if ( $diagData['minim_multi'] )
+			{
+				$diagData['minim_mode'] = $minMode + 1;
+				$diagData['minim_mode_value'] = $modeValue;
+			}
+			$diagData['codes_full'] = $listRandoProportional;
+			$diagData['minim_values'] = $listNewMinValues;
+			$diagData['minim_totals'] = [ 'final' => $listAdjustedTotals,
+			                              'base' => $listMinTotals,
+			                              'fields' => $listMinFieldTotals ];
+			$diagData['minim_random'] = $randomApplied;
+			if ( $bogusField != '' )
+			{
+				$diagData['bogus_value'] = $bogusValue;
+			}
+			$diagData = json_encode( $diagData );
+		}
+
+		// Save the randomization code to the record.
+		$inputData[$newRecordID][$randoEvent][$randoField] = $randoCode;
+		if ( $bogusField != '' )
+		{
+			$inputData[$newRecordID][$randoEvent][$bogusField] = $bogusCode;
+		}
+		if ( $diagField != '' )
+		{
+			$inputData[$newRecordID][$randoEvent][$diagField] = $diagData;
+		}
+		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
+		if ( count( $result['errors'] ) > 0 )
+		{
+			return 'Errors occurred while saving randomization: ' .
+			       explode( ', ', $result['errors'] );
+		}
+		\REDCap::logEvent( 'Randomization (minimization)',
+		                   ( $randoField .
+		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
+		                     ( $diagField == '' ? '' : "\n$diagField" ) ),
+		                   null, $newRecordID, $randoEvent );
+		return true;
 	}
 
 
