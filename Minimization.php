@@ -14,10 +14,16 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 
+		// Determine whether the randomization field is on the current form.
 		$listFields = \REDCap::getDataDictionary( 'array' );
 		$infoRandoField = $listFields[$randoField];
 		if ( $infoRandoField['form_name'] == $instrument && $randoEvent == $event_id )
 		{
+			// Get the randomization code for the record (if randomized).
+			$randoCode = $this->getRandomization( $record );
+
+			// Determine if randomize button should be displayed.
+			$showButton = ( $this->getProjectSetting( 'rando-submit-form' ) == '' );
 
 
 ?>
@@ -29,9 +35,43 @@ class Minimization extends \ExternalModules\AbstractExternalModule
     $( 'tr[sq_id=<?php echo $randoField; ?>] .choicevert' ).css( 'display', 'none' )
     $( 'tr[sq_id=<?php echo $randoField; ?>] .resetLinkParent' ).css( 'display', 'none' )
     var vRandoDetails = document.createElement( 'div' )
-    vRandoDetails.innerHTML = '<button id="redcapRandomizeBtn" class="jqbuttonmed ui-button' +
-                              ' ui-corner-all ui-widget"><span style="vertical-align:middle;' +
-                              'color:green;"><i class="fas fa-random"></i> Randomize</span></button>'
+<?php
+
+			if ( $randoCode === false )
+			{
+				if ( $showButton )
+				{
+
+?>
+    var vRandoButton = document.createElement( 'button' )
+    vRandoButton.className = 'jqbuttonmed ui-button ui-corner-all ui-widget'
+    vRandoButton.onclick = function () { return false } // TODO
+    vRandoButton.innerHTML = '<span style="vertical-align:middle;color:green;">' +
+                             '<i class="fas fa-random"></i> Randomize</span>'
+    vRandoDetails.appendChild( vRandoButton )
+<?php
+
+				}
+				else
+				{
+
+?>
+    vRandoDetails.innerHTML =
+        'The randomization allocation will show here once randomization has been performed.'
+<?php
+
+				}
+			}
+			else
+			{
+
+?>
+    vRandoDetails.innerText = '<?php echo addslashes( $this->getDescription( $randoCode ) ); ?>'
+<?php
+
+			}
+
+?>
     $('tr[sq_id=<?php echo $randoField; ?>] [name=<?php
 			echo $randoField; ?>]')[0].before( vRandoDetails )
   })()
@@ -40,6 +80,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 		}
+	}
+
+	function redcap_save_record( $project_id, $record, $instrument )
+	{
 	}
 
 
@@ -61,6 +105,31 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return null;
+	}
+
+	function getRandomization( $recordID )
+	{
+		// Check that the randomization event/field is defined.
+		$randoEvent = $this->getProjectSetting( 'rando-event' );
+		$randoField = $this->getProjectSetting( 'rando-field' );
+		if ( $randoEvent == '' || $randoField == '' )
+		{
+			return false;
+		}
+
+		// Get the record to check.
+		$listRecords = \REDCap::getData( [ 'return_format' => 'array',
+		                                   'records' => $recordID,
+		                                   'combine_checkbox_values' => true,
+		                                   'exportDataAccessGroups' => true ] );
+
+		// Get the randomization code.
+		if ( isset( $listRecords[$recordID] ) &&
+		     $listRecords[$recordID][$randoEvent][$randoField] != '' )
+		{
+			return $listRecords[$recordID][$randoEvent][$randoField];
+		}
+		return false;
 	}
 
 	function performRando( $newRecordID )

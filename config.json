@@ -10,7 +10,8 @@
 		}
 	],
 	"permissions" : [
-		"redcap_data_entry_form"
+		"redcap_data_entry_form",
+		"redcap_save_record"
 	],
 	"framework-version" : 3,
 	"compatibility" : { "redcap-version-min" : "9.6.5" },
