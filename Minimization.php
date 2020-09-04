@@ -4,6 +4,65 @@ namespace Nottingham\Minimization;
 
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
+	function redcap_data_entry_form( $project_id, $record, $instrument, $event_id )
+	{
+		// Check that the randomization event/field is defined.
+		$randoEvent = $this->getProjectSetting( 'rando-event' );
+		$randoField = $this->getProjectSetting( 'rando-field' );
+		if ( $randoEvent == '' || $randoField == '' )
+		{
+			return;
+		}
+
+		$listFields = \REDCap::getDataDictionary( 'array' );
+		$infoRandoField = $listFields[$randoField];
+		if ( $infoRandoField['form_name'] == $instrument && $randoEvent == $event_id )
+		{
+
+
+?>
+<script type="text/javascript">
+  (function ()
+  {
+    $( 'tr[sq_id=<?php echo $randoField; ?>] [name=<?php
+			echo $randoField; ?>]' ).css( 'display', 'none' )
+    $( 'tr[sq_id=<?php echo $randoField; ?>] .choicevert' ).css( 'display', 'none' )
+    $( 'tr[sq_id=<?php echo $randoField; ?>] .resetLinkParent' ).css( 'display', 'none' )
+    var vRandoDetails = document.createElement( 'div' )
+    vRandoDetails.innerHTML = '<button id="redcapRandomizeBtn" class="jqbuttonmed ui-button' +
+                              ' ui-corner-all ui-widget"><span style="vertical-align:middle;' +
+                              'color:green;"><i class="fas fa-random"></i> Randomize</span></button>'
+    $('tr[sq_id=<?php echo $randoField; ?>] [name=<?php
+			echo $randoField; ?>]')[0].before( vRandoDetails )
+  })()
+</script>
+<?php
+
+
+		}
+	}
+
+
+	function getDescription( $code )
+	{
+		// Search for the specified randomization code.
+		// Once found, return the corresponding description.
+		$listAllRandoCodes = $this->getProjectSetting( 'rando-code' );
+		$listAllRandoDescs = $this->getProjectSetting( 'rando-desc' );
+		foreach ( $listAllRandoCodes as $minMode => $listRandoCodes )
+		{
+			$listRandoDescs = $listAllRandoDescs[$minMode];
+			foreach ( $listRandoCodes as $i => $c )
+			{
+				if ( $code == $c )
+				{
+					return $listRandoDescs[$i];
+				}
+			}
+		}
+		return null;
+	}
+
 	function performRando( $newRecordID )
 	{
 		// Check that the randomization event/field is defined.
@@ -16,7 +75,6 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 		// Get all the records for the project.
 		$listRecords = \REDCap::getData( [ 'return_format' => 'array',
-		                                   'records' => $newRecordID,
 		                                   'combine_checkbox_values' => true,
 		                                   'exportDataAccessGroups' => true ] );
 
@@ -214,26 +272,41 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// Perform the randomization.
 		$listAdjustedCodes = array_keys( $listAdjustedTotals );
 		$randoCode = array_shift( $listAdjustedCodes );
+		$initialRandom = $this->getProjectSetting( 'initial-random' );
 		$randomFactor = $this->getProjectSetting( 'random-factor' );
 		$randomPercent = $this->getProjectSetting( 'random-percent' );
-		$randomApplied = 'none';
+		$randomApplied = [ 'initial' => false, 'factor' => null,
+		                   'values' => [], 'details' => 'none' ];
 		$listRandoProportional = [];
 		foreach ( $listCodeRatios as $code => $ratio )
 		{
 			$listRandoProportional =
 					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
 		}
-		if ( $randomFactor == 'S' || $randomFactor == 'C' )
+		if ( $initialRandom != '' && $randoNum <= $initialRandom )
+		{
+			// Always allocate randomly for the specified number of initial records.
+			$randomApplied['initial'] = true;
+			$randomApplied['details'] = 'randomization number (' . $randoNum . ') <= ' .
+			                            $initialRandom . ', allocation chosen randomly';
+			$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
+			$randoCode = $listRandoProportional[$randoValue];
+			$randomApplied['details'] .= ' (' . $randoValue . ')';
+		}
+		elseif ( $randomFactor == 'S' || $randomFactor == 'C' )
 		{
 			// Based on the random percentage, skip an allocation either once or 'compounding'
 			// (i.e. random-percent of random-percent times, skip two allocations, and so on...)
-			$randomApplied = '';
+			$randomApplied['details'] = '';
 			$testPercent = random_int( 0, 1000000 ) / 10000;
 			while ( $testPercent < $randomPercent && count( $listAdjustedCodes ) > 0 )
 			{
-				$randomApplied .= ( $randomApplied == '' ) ? '' : '; ';
-				$randomApplied .= 'random value (' . $testPercent . ') < ' . $randomPercent .
-				                  ', allocation ' . $randoCode . ' skipped';
+				$randomApplied['factor'] = $randomFactor;
+				$randomApplied['values'][] = $testPercent;
+				$randomApplied['details'] .= ( $randomApplied['details'] == '' ) ? '' : '; ';
+				$randomApplied['details'] .= 'random value (' . $testPercent . ') < ' .
+				                             $randomPercent . ', allocation ' .
+				                             $randoCode . ' skipped';
 				$randoCode = array_shift( $listAdjustedCodes );
 				if ( $randomFactor == 'S' )
 				{
@@ -241,11 +314,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 				$testPercent = random_int( 0, 1000000 ) / 10000;
 			}
-			if ( $randomApplied == '' || $randomFactor == 'C' )
+			if ( $randomApplied['details'] == '' || $randomFactor == 'C' )
 			{
-				$randomApplied .= ( $randomApplied == '' ) ? '' : '; ';
-				$randomApplied .= 'random value (' . $testPercent . ') >= ' . $randomPercent .
-				                  ', minimized allocation used';
+				$randomApplied['values'][] = $testPercent;
+				$randomApplied['details'] .= ( $randomApplied['details'] == '' ) ? '' : '; ';
+				$randomApplied['details'] .= 'random value (' . $testPercent . ') >= ' .
+				                             $randomPercent . ', minimized allocation used';
 			}
 		}
 		elseif ( $randomFactor == 'R' )
@@ -253,16 +327,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$testPercent = random_int( 0, 1000000 ) / 10000;
 			if ( $testPercent < $randomPercent )
 			{
-				$randomApplied = 'random value (' . $testPercent . ') < ' . $randomPercent .
-				                 ', allocation chosen randomly';
+				$randomApplied['factor'] = $randomFactor;
+				$randomApplied['values'][] = $testPercent;
+				$randomApplied['details'] = 'random value (' . $testPercent . ') < ' .
+				                            $randomPercent . ', allocation chosen randomly';
 				$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
 				$randoCode = $listRandoProportional[$randoValue];
-				$randomApplied .= ' (' . $randoValue . ')';
+				$randomApplied['details'] .= ' (' . $randoValue . ')';
 			}
 			else
 			{
-				$randomApplied = 'random value (' . $testPercent . ') >= ' . $randomPercent .
-				                 ', minimized allocation used';
+				$randomApplied['values'][] = $testPercent;
+				$randomApplied['details'] = 'random value (' . $testPercent . ') >= ' .
+				                            $randomPercent . ', minimized allocation used';
 			}
 		}
 
@@ -282,7 +359,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			              'stratify' => ( $this->getProjectSetting( 'stratify' ) ? true : false ) ];
 			if ( $diagData['stratify'] )
 			{
-				$diagData['strata_values'] = $listStratValues;
+				$diagData['strata_values'] = [];
+				foreach ( $listStratValues as $eventNum => $infoStratEvent )
+				{
+					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					foreach ( $infoStratEvent as $fieldName => $value )
+					{
+						$diagData['strata_values']["$eventName.$fieldName"] = $value;
+					}
+				}
 				$diagData['strata_records'] = array_keys( $listRecords );
 			}
 			$diagData['minim_multi'] = $this->getProjectSetting( 'mode-variable' ) ? true : false;
@@ -292,10 +377,29 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData['minim_mode_value'] = $modeValue;
 			}
 			$diagData['codes_full'] = $listRandoProportional;
-			$diagData['minim_values'] = $listNewMinValues;
+			$diagData['minim_values'] = [];
+			foreach ( $listNewMinValues as $eventNum => $infoMinEvent )
+			{
+				$eventName = \REDCap::getEventNames( true, true, $eventNum );
+				foreach ( $infoMinEvent as $fieldName => $value )
+				{
+					$diagData['minim_values']["$eventName.$fieldName"] = $value;
+				}
+			}
 			$diagData['minim_totals'] = [ 'final' => $listAdjustedTotals,
 			                              'base' => $listMinTotals,
-			                              'fields' => $listMinFieldTotals ];
+			                              'fields' => [] ];
+			foreach ( $listMinFieldTotals as $code => $infoMinField )
+			{
+				foreach ( $infoMinField as $eventNum => $infoMinEvent )
+				{
+					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					foreach ( $infoMinEvent as $fieldName => $value )
+					{
+						$diagData['minim_totals']['fields'][$code]["$eventName.$fieldName"] = $value;
+					}
+				}
+			}
 			$diagData['minim_random'] = $randomApplied;
 			if ( $bogusField != '' )
 			{
@@ -317,8 +421,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
 		if ( count( $result['errors'] ) > 0 )
 		{
-			return 'Errors occurred while saving randomization: ' .
-			       explode( ', ', $result['errors'] );
+			return "Errors occurred while saving randomization:\n" .
+			       //print_r( $result['errors'], true );
+			       implode( "\n", $result['errors'] );
 		}
 		\REDCap::logEvent( 'Randomization (minimization)',
 		                   ( $randoField .
@@ -436,6 +541,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		       $settings['random-percent'] > 100 ) )
 		{
 			$errMsg .= "\n- % randomizations using random factor must be between 0 and 100";
+		}
+
+		if ( $settings['initial-random'] != '' &&
+		     ! preg_match( '/^(0|[1-9][0-9]*)$/', $settings['initial-random'] ) )
+		{
+			$errMsg .= "\n- Number of initial random allocations must be an integer";
 		}
 
 		if ( $errMsg != '' )

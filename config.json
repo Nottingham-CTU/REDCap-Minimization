@@ -9,7 +9,9 @@
 			"institution": "University of Nottingham"
 		}
 	],
-	"permissions" : [],
+	"permissions" : [
+		"redcap_data_entry_form"
+	],
 	"framework-version" : 3,
 	"compatibility" : { "redcap-version-min" : "9.6.5" },
 	"project-settings" : [
@@ -174,6 +176,16 @@
 			"name" : "% of randomizations to use the random factor",
 			"type" : "text",
 			"branchingLogic" : { "field" : "random-factor", "op" : "<>", "value" : "" }
+		},
+		{
+			"key" : "space6",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "initial-random",
+			"name" : "Number of initial random allocations<br>(optional)",
+			"type" : "text"
 		}
 	]
 }
