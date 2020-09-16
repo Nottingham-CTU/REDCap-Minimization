@@ -45,8 +45,39 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 ?>
     var vRandoButton = document.createElement( 'button' )
     vRandoButton.className = 'jqbuttonmed ui-button ui-corner-all ui-widget'
-    vRandoButton.onclick = function () { return false } // TODO
-    vRandoButton.innerHTML = '<span style="vertical-align:middle;color:green;">' +
+    vRandoButton.onclick = function ()
+    {
+      if ( ! confirm( 'Randomize record <?php echo addslashes( $record ); ?>?' ) )
+      {
+        return false
+      }
+      var vOldFormChangedVal = dataEntryFormValuesChanged
+      $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
+                method : 'POST',
+                data : { record : '<?php echo addslashes( $record ); ?>',
+                         token : $('[name=redcap_csrf_token]')[0].value },
+                headers : { 'X-RC-Min-Req' : '1' },
+                dataType : 'json',
+                success : function( result )
+                {
+                  if ( result.status )
+                  {
+                    Object.keys(result.data).forEach( function( fieldName )
+                    {
+                      $( '[name=' + fieldName + ']' )[0].value = result.data[fieldName]
+                    } )
+                    vRandoDetails.innerText = result.message
+                    dataEntryFormValuesChanged = vOldFormChangedVal
+                  }
+                  else
+                  {
+                    alert( 'The record could not be randomized:\n\n' + result.message )
+                  }
+                }
+              } )
+      return false
+    }
+    vRandoButton.innerHTML = '<span style="vertical-align:middle;color:green">' +
                              '<i class="fas fa-random"></i> Randomize</span>'
     vRandoDetails.appendChild( vRandoButton )
 <?php
@@ -82,8 +113,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 	}
 
-	function redcap_save_record( $project_id, $record, $instrument )
+	function redcap_save_record( $project_id, $record, $instrument, $event_id )
 	{
+		if ( $instrument == $this->getProjectSetting( 'rando-submit-form' ) &&
+		     $event_id == $this->getProjectSetting( 'rando-event' ) &&
+		     \REDCap::getData( 'array', $record, $instrument . '_complete',
+		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' )
+		{
+			$this->performRando( $record );
+		}
 	}
 
 
