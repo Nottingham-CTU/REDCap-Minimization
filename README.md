@@ -32,7 +32,7 @@ JSON object. For best results, the diagnostic output field should be of the **No
 * **num**: Randomization number (order in which the randomizations occurred)
 * **stratify**: Whether stratification has been used (true/false)
 * **strata_values**: Values of the stratification variables
-* **strata_records**: Other records in the strata
+* **strata_records**: The number of other records in the strata
 * **minim_multi**: Whether multiple minimization modes have been used (true/false)
 * **minim_mode**: Which minimization mode has been used
 * **minim_mode_value**: Value of the minimization mode field

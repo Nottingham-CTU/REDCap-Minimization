@@ -4,6 +4,37 @@ namespace Nottingham\Minimization;
 
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
+	// Show the batch randomization button only to administrators.
+	function redcap_module_link_check_display( $project_id, $link )
+	{
+		return $this->framework->getUser()->isSuperUser() ? $link : null;
+	}
+
+	function redcap_every_page_before_render( $project_id )
+	{
+		if ( $project_id === null )
+		{
+			return;
+		}
+		$randoEvent = $this->getProjectSetting( 'rando-event' );
+		$randoField = $this->getProjectSetting( 'rando-field' );
+		if ( $randoEvent == '' || $randoField == '' )
+		{
+			return;
+		}
+		$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
+		$bogusField = $this->getProjectSetting( 'bogus-field' );
+		$diagField = $this->getProjectSetting( 'diag-field' );
+		if ( $bogusField != '' )
+		{
+			$GLOBALS['Proj']->metadata[$bogusField]['field_req'] = 0;
+		}
+		if ( $diagField != '' )
+		{
+			$GLOBALS['Proj']->metadata[$diagField]['field_req'] = 0;
+		}
+	}
+
 	function redcap_data_entry_form( $project_id, $record, $instrument, $event_id )
 	{
 		// Check that the randomization event/field is defined.
@@ -475,7 +506,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 						$diagData['strata_values']["$eventName.$fieldName"] = $value;
 					}
 				}
-				$diagData['strata_records'] = array_keys( $listRecords );
+				$diagData['strata_records'] = count( $listRecords );
 			}
 			$diagData['minim_multi'] = $this->getProjectSetting( 'mode-variable' ) ? true : false;
 			if ( $diagData['minim_multi'] )

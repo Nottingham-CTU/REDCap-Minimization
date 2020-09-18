@@ -10,11 +10,17 @@
 		}
 	],
 	"permissions" : [
+		"redcap_every_page_before_render",
 		"redcap_data_entry_form",
 		"redcap_save_record"
 	],
 	"framework-version" : 3,
 	"compatibility" : { "redcap-version-min" : "9.6.5" },
+	"links" : {
+		"project" : [
+			{ "name" : "Batch Randomization", "icon" : "far fa-list-alt", "url" : "batch_rando.php" }
+		]
+	},
 	"project-settings" : [
 		{
 			"key" : "rando-event",
