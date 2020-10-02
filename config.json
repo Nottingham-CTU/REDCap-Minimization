@@ -11,6 +11,7 @@
 	],
 	"permissions" : [
 		"redcap_every_page_before_render",
+		"redcap_every_page_top",
 		"redcap_data_entry_form",
 		"redcap_save_record"
 	],

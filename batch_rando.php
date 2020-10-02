@@ -1,10 +1,14 @@
 <?php
 
+// Only allow administrators to access this page.
 if ( ! $module->framework->getUser()->isSuperUser() )
 {
 	exit;
 }
 
+// Upon submission, perform the batch randomization.
+// Note that errors will not be displayed. If any records don't randomize, the errors can be viewed
+// in the log.
 if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_token'] ) &&
      isset( $_POST['rando_record'] ) )
 {
@@ -14,6 +18,7 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 	}
 }
 
+// Get the randomization fields.
 $randoEvent = $module->getProjectSetting( 'rando-event' );
 $randoField = $module->getProjectSetting( 'rando-field' );
 $bogusField = $module->getProjectSetting( 'bogus-field' );
@@ -23,6 +28,7 @@ $listRecords = REDCap::getData( 'array' );
 // Display the project header
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 
+// Define page style.
 $style = '
 	table.dataTable thead tr th {
 		background-color: #FFFFE0;
@@ -61,6 +67,7 @@ echo '<script type="text/javascript">',
     <th>Randomize</th>
 <?php
 
+// Lay out the records in a grid.
 $recsPerRow = 5;
 for ( $i = 1; $i < $recsPerRow; $i++ )
 {
@@ -111,6 +118,8 @@ foreach ( $listRecords as $recordID => $infoRecord )
     <td style="text-align:right"><?php echo htmlspecialchars( $recordID ); ?></td>
 <?php
 
+	// For randomized records, display the randomization icon and show the allocation and
+	// diagnostic data in a tooltip.
 	if ( isset( $infoRecord[$randoEvent][$randoField] ) &&
 	     $infoRecord[$randoEvent][$randoField] != '' )
 	{
@@ -158,6 +167,8 @@ foreach ( $listRecords as $recordID => $infoRecord )
 <?php
 
 	}
+	// For unrandomized records, display a checkbox (checked by default) so the record can be
+	// selected on deselected for randomization.
 	else
 	{
 
@@ -174,6 +185,9 @@ if ( count( $listRecords ) % $recsPerRow != 0 )
 	echo str_repeat( "   <td></td>\n", ( $recsPerRow - count( $listRecords ) % $recsPerRow ) * 3 );
 }
 
+
+// Show options to select or deselect all the checkboxes, and provide a button to perform
+// randomization on the selected records.
 ?>
    </tr>
   </tbody>
@@ -197,3 +211,4 @@ if ( count( $listRecords ) % $recsPerRow != 0 )
 
 // Display the project footer
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/footer.php';
+

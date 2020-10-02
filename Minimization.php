@@ -16,6 +16,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			return;
 		}
+		// If the randomization event/field is defined, ensure that REDCap treats the field as
+		// *not* required, even if it is marked as required. This will stop REDCap from complaining
+		// about a lack of value while waiting on this module to populate the field. Do the same for
+		// the fake randomization field and the diagnostic field if these are defined.
 		$randoEvent = $this->getProjectSetting( 'rando-event' );
 		$randoField = $this->getProjectSetting( 'rando-field' );
 		if ( $randoEvent == '' || $randoField == '' )
@@ -34,6 +38,32 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$GLOBALS['Proj']->metadata[$diagField]['field_req'] = 0;
 		}
 	}
+
+
+
+	// If a randomization failed on form submission, load the error message from the session
+	// variable and display it on page load. Clear the session variable once triggered.
+	function redcap_every_page_top( $project_id )
+	{
+		if ( isset( $_SESSION['module_minimization_message'] ) )
+		{
+			$errMsg = "The record could not be randomized:\n\n" .
+			          $_SESSION['module_minimization_message'];
+			$errMsg = str_replace( "\n", '\n', addslashes( $errMsg ) );
+			unset( $_SESSION['module_minimization_message'] );
+
+
+?>
+<script type="text/javascript">
+  $(function () { alert('<?php echo $errMsg; ?>') })
+</script>
+<?php
+
+
+		}
+	}
+
+
 
 	function redcap_data_entry_form( $project_id, $record, $instrument, $event_id )
 	{
@@ -57,6 +87,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$showButton = ( $this->getProjectSetting( 'rando-submit-form' ) == '' );
 
 
+
+			// Hide the randomization field and prepare to display text or button.
 ?>
 <script type="text/javascript">
   (function ()
@@ -68,11 +100,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
     var vRandoDetails = document.createElement( 'div' )
 <?php
 
-			if ( $randoCode === false )
+
+			if ( $randoCode === false ) // randomization has *not* been performed for record yet
 			{
-				if ( $showButton )
+				if ( $showButton ) // randomization is performed by clicking a button
 				{
 
+
+					// Display the button and handle button click (perform the randomization and
+					// display the result or show an error message).
 ?>
     var vRandoButton = document.createElement( 'button' )
     vRandoButton.className = 'jqbuttonmed ui-button ui-corner-all ui-widget'
@@ -113,26 +149,35 @@ class Minimization extends \ExternalModules\AbstractExternalModule
     vRandoDetails.appendChild( vRandoButton )
 <?php
 
+
 				}
-				else
+				else // randomization is performed by submitting the form
 				{
 
+
+					// Inform the user that randomization is yet to be performed.
 ?>
     vRandoDetails.innerHTML =
         'The randomization allocation will show here once randomization has been performed.'
 <?php
 
+
 				}
 			}
-			else
+			else // randomization *has* been performed for record
 			{
 
+
+				// Inform the user of the randomization result.
 ?>
     vRandoDetails.innerText = '<?php echo addslashes( $this->getDescription( $randoCode ) ); ?>'
 <?php
 
+
 			}
 
+
+			// Show the text or button in place of the hidden field.
 ?>
     $('tr[sq_id=<?php echo $randoField; ?>] [name=<?php
 			echo $randoField; ?>]')[0].before( vRandoDetails )
@@ -141,17 +186,35 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <?php
 
 
-		}
-	}
+		} // end if randomization field on current form
+	} // end function redcap_data_entry_form
 
+
+
+	// Perform randomization on form submission, if configured.
 	function redcap_save_record( $project_id, $record, $instrument, $event_id )
 	{
-		if ( $instrument == $this->getProjectSetting( 'rando-submit-form' ) &&
-		     $event_id == $this->getProjectSetting( 'rando-event' ) &&
+		$randoEvent = $this->getProjectSetting( 'rando-event' );
+		$randoField = $this->getProjectSetting( 'rando-field' );
+		if ( // Check rando event/field are defined and the submission is for the rando event.
+		     $randoEvent != '' && $randoField != '' && $event_id == $randoEvent &&
+		     // Check that the submission is for the form which triggers randomization.
+		     $instrument == $this->getProjectSetting( 'rando-submit-form' ) &&
+		     // Check that the record is not already randomized (randomization field is blank).
+		     \REDCap::getData( 'array', $record, $randoField,
+		                       $randoEvent )[$record][$randoEvent][$randoField] == '' &&
+		     // Check that the submitted form is complete (<instrument_name>_complete == 2).
 		     \REDCap::getData( 'array', $record, $instrument . '_complete',
 		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' )
 		{
-			$this->performRando( $record );
+			// Attempt randomization and get status (true if successful, otherwise error message).
+			$status = $this->performRando( $record );
+			// If randomization failed, save the error message to the session. This will be used
+			// on the next page load to display an alert.
+			if ( $status !== true )
+			{
+				$_SESSION['module_minimization_message'] = $status;
+			}
 		}
 	}
 
@@ -208,6 +271,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$randoField = $this->getProjectSetting( 'rando-field' );
 		if ( $randoEvent == '' || $randoField == '' )
 		{
+			// If the randomization event and/or field are not defined, treat randomization as
+			// disabled. Therefore this message is not written to the log.
 			return 'Randomization not enabled. The randomization event and field must be defined.';
 		}
 
@@ -220,7 +285,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( ! isset( $listRecords[$newRecordID] ) ||
 		     $listRecords[$newRecordID][$randoEvent][$randoField] != '' )
 		{
-			return 'Randomization already performed for this record.';
+			return $this->logRandoFailure( 'Randomization already performed for this record.',
+			                               $newRecordID );
 		}
 		$infoNewRecord = $listRecords[$newRecordID];
 
@@ -237,7 +303,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$stratField = $listStratFields[$i];
 				if ( $infoNewRecord[$stratEvent][$stratField] == '' )
 				{
-					return "Stratification variable $stratField missing.";
+					return $this->logRandoFailure( "Stratification variable $stratField missing.",
+					                               $newRecordID );
 				}
 				$listStratValues[$stratEvent][$stratField] =
 						$infoNewRecord[$stratEvent][$stratField];
@@ -288,7 +355,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		if ( $minMode < 0 )
 		{
-			return "Minimization mode variable $modeField missing.";
+			return $this->logRandoFailure( "Minimization mode variable $modeField missing.",
+			                               $newRecordID );
 		}
 
 		// Get the randomization codes and ratios.
@@ -319,7 +387,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$minValue = $infoNewRecord[$minEvent][$minField];
 			if ( $minValue == '' )
 			{
-				return "Minimization variable $minField missing.";
+				return $this->logRandoFailure( "Minimization variable $minField missing.",
+				                               $newRecordID );
 			}
 			$listNewMinValues[$minEvent][$minField] = $minValue;
 		}
@@ -393,11 +462,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					return ( $carry * $item ) / $a;
 				}
 			}, 0 );
+
 		$listAdjustedTotals = [];
 		foreach ( $listMinTotals as $code => $total )
 		{
 			$listAdjustedTotals[$code] = ( $total * $ratioCommonMultiple ) / $listCodeRatios[$code];
 		}
+
 		uasort( $listAdjustedTotals, function( $a, $b )
 		{
 			if ( $a == $b )
@@ -559,9 +630,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
 		if ( count( $result['errors'] ) > 0 )
 		{
-			return "Errors occurred while saving randomization:\n" .
-			       //print_r( $result['errors'], true );
-			       implode( "\n", $result['errors'] );
+			return $this->logRandoFailure( "Errors occurred while saving randomization:\n" .
+			                               implode( "\n", $result['errors'] ), $newRecordID );
 		}
 		\REDCap::logEvent( 'Randomization (minimization)',
 		                   ( $randoField .
@@ -569,6 +639,16 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                     ( $diagField == '' ? '' : "\n$diagField" ) ),
 		                   null, $newRecordID, $randoEvent );
 		return true;
+	}
+
+
+	// Writes the supplied failure description to the project log.
+	// The description is returned by this function to simplify using or returning the description
+	// in the randomization function following logging.
+	function logRandoFailure( $description, $recordID )
+	{
+		\REDCap::logEvent( 'Failed randomization (minimization)', $description, null, $recordID );
+		return $description;
 	}
 
 
@@ -694,3 +774,4 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		return null;
 	}
 }
+

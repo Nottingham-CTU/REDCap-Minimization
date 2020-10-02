@@ -14,7 +14,7 @@ This module provides the following functionality:
 * Define any number of randomization allocations and minimization variables in each minimization
   mode (minimization variables can be in different events).
 * Manually randomize by clicking a button (in the place of the randomization field), or
-  automatically upon submission of a form.
+  automatically upon submission of a form (when form status is complete).
 * Apply a random factor so that the minimized allocation is not chosen every time.
 * Specify a number of allocations to assign randomly before minimization is used.
 * Store diagnostic output from the stratification and minimization in a field on the project.
