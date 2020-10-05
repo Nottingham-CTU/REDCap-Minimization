@@ -4,11 +4,14 @@ namespace Nottingham\Minimization;
 
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
+
 	// Show the batch randomization button only to administrators.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
 		return $this->framework->getUser()->isSuperUser() ? $link : null;
 	}
+
+
 
 	function redcap_every_page_before_render( $project_id )
 	{
@@ -27,8 +30,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 		$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
+		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		$bogusField = $this->getProjectSetting( 'bogus-field' );
 		$diagField = $this->getProjectSetting( 'diag-field' );
+		if ( $dateField != '' )
+		{
+			$GLOBALS['Proj']->metadata[$dateField]['field_req'] = 0;
+		}
 		if ( $bogusField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$bogusField]['field_req'] = 0;
@@ -109,6 +117,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 					// Display the button and handle button click (perform the randomization and
 					// display the result or show an error message).
+					// If the randomization is successful, the values on the form will be updated
+					// to reflect the values now stored in the database. If a field is a d-m-y or
+					// m-d-y date field, the data will be appropriately transformed for display.
 ?>
     var vRandoButton = document.createElement( 'button' )
     vRandoButton.className = 'jqbuttonmed ui-button ui-corner-all ui-widget'
@@ -131,7 +142,22 @@ class Minimization extends \ExternalModules\AbstractExternalModule
                   {
                     Object.keys(result.data).forEach( function( fieldName )
                     {
-                      $( '[name=' + fieldName + ']' )[0].value = result.data[fieldName]
+                      var vField = $( '[name=' + fieldName + ']' )
+                      var vData = result.data[fieldName]
+                      if ( vField.hasClass( 'date_dmy' ) || vField.hasClass( 'datetime_dmy' ) ||
+                           vField.hasClass( 'datetime_seconds_dmy' ) )
+                      {
+                        vData = vData.substring( 8, 10 ) + '-' + vData.substring( 5, 7 ) + '-' +
+                                vData.substring( 0, 4 ) + vData.substring( 10 )
+                      }
+                      else if ( vField.hasClass( 'date_mdy' ) ||
+                                vField.hasClass( 'datetime_mdy' ) ||
+                                vField.hasClass( 'datetime_seconds_mdy' ) )
+                      {
+                        vData = vData.substring( 5, 7 ) + '-' + vData.substring( 8, 10 ) + '-' +
+                                vData.substring( 0, 4 ) + vData.substring( 10 )
+                      }
+                      vField[0].value = vData
                     } )
                     vRandoDetails.innerText = result.message
                     dataEntryFormValuesChanged = vOldFormChangedVal
@@ -219,6 +245,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	}
 
 
+
 	function getDescription( $code )
 	{
 		// Search for the specified randomization code.
@@ -238,6 +265,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		return null;
 	}
+
+
 
 	function getRandomization( $recordID )
 	{
@@ -264,6 +293,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		return false;
 	}
 
+
+
 	function performRando( $newRecordID )
 	{
 		// Check that the randomization event/field is defined.
@@ -276,10 +307,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return 'Randomization not enabled. The randomization event and field must be defined.';
 		}
 
+
 		// Get all the records for the project.
 		$listRecords = \REDCap::getData( [ 'return_format' => 'array',
 		                                   'combine_checkbox_values' => true,
 		                                   'exportDataAccessGroups' => true ] );
+
 
 		// Get the record to randomize.
 		if ( ! isset( $listRecords[$newRecordID] ) ||
@@ -289,6 +322,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			                               $newRecordID );
 		}
 		$infoNewRecord = $listRecords[$newRecordID];
+
 
 		// Remove unrandomized records from the list and perform stratification.
 		$randoNum = 1;
@@ -334,6 +368,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 
+
 		// Select the minimization mode to use. If multiple minimization modes are not in use, then
 		// the appropriate mode is the first (and only) one.
 		$minMode = 0;
@@ -358,6 +393,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return $this->logRandoFailure( "Minimization mode variable $modeField missing.",
 			                               $newRecordID );
 		}
+
 
 		// Get the randomization codes and ratios.
 		$listAllRandoCodes = $this->getProjectSetting( 'rando-code' );
@@ -392,6 +428,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 			$listNewMinValues[$minEvent][$minField] = $minValue;
 		}
+
 
 		// Calculate the minimization totals using the minimization field values for the existing
 		// records.
@@ -429,6 +466,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}
 		}
+
 
 		// Divide the minimization totals by the allocation ratio, and sort lowest to highest.
 		// Minimization totals are multiplied by the lowest common multiple of the allocation ratios
@@ -552,6 +590,21 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 
+		// Determine the date/time if required.
+		$dateField = $this->getProjectSetting( 'rando-date-field' );
+		if ( $dateField != '' )
+		{
+			$dateTZ = $this->getProjectSetting( 'rando-date-tz' );
+			if ( $dateTZ == 'U' ) // UTC
+			{
+				$dateValue = gmdate( 'Y-m-d H:i:s' );
+			}
+			elseif ( $dateTZ == 'S' ) // server timezone
+			{
+				$dateValue = date( 'Y-m-d H:i:s' );
+			}
+		}
+
 		// Perform a fake randomization if required.
 		$bogusField = $this->getProjectSetting( 'bogus-field' );
 		if ( $bogusField != '' )
@@ -619,6 +672,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 		// Save the randomization code to the record.
 		$inputData[$newRecordID][$randoEvent][$randoField] = $randoCode;
+		if ( $dateField != '' )
+		{
+			$inputData[$newRecordID][$randoEvent][$dateField] = $dateValue;
+		}
 		if ( $bogusField != '' )
 		{
 			$inputData[$newRecordID][$randoEvent][$bogusField] = $bogusCode;
@@ -635,6 +692,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		\REDCap::logEvent( 'Randomization (minimization)',
 		                   ( $randoField .
+		                     ( $dateField == '' ? '' : "\n$dateField" ) .
 		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
 		                     ( $diagField == '' ? '' : "\n$diagField" ) ),
 		                   null, $newRecordID, $randoEvent );
@@ -665,6 +723,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( $settings['rando-event'] == '' || $settings['rando-field'] == '' )
 		{
 			$rando = false;
+		}
+
+		// Check that the rando date/time timezone is specified if a date/time field is specified.
+		if ( $settings['rando-date-field'] != '' && $settings['rando-date-tz'] == '' )
+		{
+			$errMsg .= "\n- A timezone for the randomization date/time must be selected";
 		}
 
 		// Check that stratification variables are correctly specified.
@@ -773,5 +837,6 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		return null;
 	}
+
 }
 

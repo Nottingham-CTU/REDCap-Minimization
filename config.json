@@ -34,6 +34,21 @@
 			"type" : "field-list"
 		},
 		{
+			"key" : "rando-date-field",
+			"name" : "Field to store the date/time of randomization<br>(optional)",
+			"type" : "field-list"
+		},
+		{
+			"key" : "rando-date-tz",
+			"name" : "Timezone for randomization date/time",
+			"type" : "radio",
+			"choices" : [
+				{ "value" : "U", "name" : "UTC" },
+				{ "value" : "S", "name" : "Server timezone" }
+			],
+			"branchingLogic" : { "field" : "rando-date-field", "op" : "<>", "value" : "" }
+		},
+		{
 			"key" : "bogus-field",
 			"name" : "Field to store a fake randomization allocation<br>e.g. for blinded extracts<br>(optional)",
 			"type" : "field-list"

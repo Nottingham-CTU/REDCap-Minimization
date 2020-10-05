@@ -29,12 +29,13 @@ if ( $status === true )
 	$return['status'] = true;
 	$randoEvent = $module->getProjectSetting( 'rando-event' );
 	$randoField = $module->getProjectSetting( 'rando-field' );
+	$dateField = $module->getProjectSetting( 'rando-date-field' );
 	$bogusField = $module->getProjectSetting( 'bogus-field' );
 	$diagField = $module->getProjectSetting( 'diag-field' );
 	$metadata = REDCap::getDataDictionary( 'array', false,
-	                                       [ $randoField, $bogusField, $diagField ] );
+	                                       [ $randoField, $dateField, $bogusField, $diagField ] );
 	$form = $metadata[$randoField]['form_name'];
-	foreach ( [ $randoField, $bogusField, $diagField ] as $fieldName )
+	foreach ( [ $randoField, $dateField, $bogusField, $diagField ] as $fieldName )
 	{
 		if ( $fieldName != '' && $metadata[$fieldName]['form_name'] == $form )
 		{
