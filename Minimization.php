@@ -540,7 +540,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$randoCode = $listRandoProportional[$randoValue];
 			$randomApplied['details'] .= ' (' . $randoValue . ')';
 		}
-		elseif ( $randomFactor == 'S' || $randomFactor == 'C' )
+		elseif ( $randomFactor == 'S' || $randomFactor == 'C' ) // skip allocation (once/compound)
 		{
 			// Based on the random percentage, skip an allocation either once or 'compounding'
 			// (i.e. random-percent of random-percent times, skip two allocations, and so on...)
@@ -561,6 +561,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 				$testPercent = random_int( 0, 1000000 ) / 10000;
 			}
+			// For skip once, note that minimized allocation was used if not skipped.
+			// For compounding ($randomFactor == 'C'), always note when the minimized allocation
+			// used (after all the skipped allocations).
 			if ( $randomApplied['details'] == '' || $randomFactor == 'C' )
 			{
 				$randomApplied['values'][] = $testPercent;
@@ -569,7 +572,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				                             $randomPercent . ', minimized allocation used';
 			}
 		}
-		elseif ( $randomFactor == 'R' )
+		elseif ( $randomFactor == 'R' ) // allocate randomly
 		{
 			$testPercent = random_int( 0, 1000000 ) / 10000;
 			if ( $testPercent < $randomPercent )

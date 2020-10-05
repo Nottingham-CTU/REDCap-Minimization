@@ -24,6 +24,90 @@ fields used for randomization allocations, minimization variables and stratifica
 should not be on a repeating instance or event.
 
 
+## Project-level configuration options
+
+### Randomization event
+The arm and event on the project where the randomization field is located. Also used for the
+randomization date/time field, fake randomization field, and diagnostic output field.
+
+### Randomization field
+The field where the randomization allocation is stored. Either a standard text field or a multiple
+choice field can be used for this. If using a multiple choice field, ensure that **all** of the
+randomization allocations from all of the minimization modes are present in the choices.
+
+This field will not be editable by users (except to perform a randomization either by clicking the
+randomize button or submitting the form). The randomization date/time, fake randomization, and
+diagnostic output fields will however be editable by users unless you set a @READONLY or @HIDDEN
+action tag on them.
+
+### Field to store the date/time of randomization
+The field where the date/time of randomization will be stored. Like the randomization, fake
+randomization, and diagnostic output fields, a value will only be saved for this field if
+randomization is successful. Use a text field for this, optionally with a *datetime w/ seconds*
+validation type (which will display the date in the specified format).
+
+### Timezone for randomization date/time
+The timezone used for the randomization date/time. The following options are currently supported:
+* UTC
+* Server timezone
+
+### Field to store a fake randomization allocation
+A value determined separately from the randomization allocation will be stored here. This can be
+useful for blinded data extracts. It is unlikely to be useful (and may be confusing) to site
+researchers, so the @HIDDEN action tag should be used to hide the field. The field type should be
+the same as on the randomization field.
+
+### Field to store diagnostic output for the randomization
+This field stores information that can be useful for verifying or debugging your randomization
+configuration. It is unlikely to be useful (and may be confusing) to site researchers, so the
+@HIDDEN action tag should be used to hide the field. A notes box field type should be used for this.
+
+### Stratification variables
+The stratification variables split the records into stratas, where the *strata* is the set of
+records for which all the stratification variables have the same values as on the record being
+randomized. Randomization is performed with regards to the strata only. The event and field must be
+specified for each stratification variable. There is no limit to the number of stratification
+variables, but using a large number should be avoided.
+
+### Use multiple minimization modes
+If enabled, this allows a event and field to be defined, the value of which will determine which
+minimization mode is used. If this is not enabled, only one minimization mode can be defined.
+Multiple modes can be useful for studies where some of the allocations only apply to some of the
+participants, or where some participants need to be minimized on different criteria.
+
+### Minimization mode
+
+#### Minimization mode value
+If multiple minimization modes are enabled, this specifies the value of the minimization mode field
+which will cause this minimization mode to be used. Each minimization mode must have a unique value.
+
+#### Randomization allocation
+Each randomization allocation must have a **code** (which is the raw value held in the dataset), a
+**description** (which is the text displayed to users), and a **ratio** (which denotes how often an
+allocation is to be used relative to the other allocations).
+
+#### Minimization variable
+Specify the event and field for each minimization variable. Each minimization mode must have at
+least one minimization variable. The minimization algorithm will aim to place the new record in the
+allocation for which there are the minimum matching values from existing records in the strata for
+the minimization variables (adjusted for ratio).
+
+### Automatically randomize on submission of form
+Instead of presenting a *randomize* button in place of the randomization field which can be clicked
+to perform randomization, the randomization can be performed automatically when a form is submitted.
+It is possible to choose a form other than the one on which the randomization field appears.
+
+### Random factor
+Optionally add a random factor, so the minimized allocation is not chosen every time. A description
+of each random factor can be found below under *randomization algorithm*. If using a random factor,
+the percentage of randomizations to which it is applied must be specified. This would typically be
+a value greater than 0 and less than 50.
+
+### Number of initial random allocations
+If specified, the first records to be randomized, up to the number specified, will be allocated
+randomly rather than by minimization.
+
+
 ## Diagnostic output
 
 If a field is selected for diagnostic output, the following data will be written to the field as a
