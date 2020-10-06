@@ -16,6 +16,12 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 	{
 		$module->performRando( $record );
 	}
+	if ( isset( $_SERVER['HTTP_X_RC_MIN_BATCH'] ) )
+	{
+		header( 'Content-Type: application/json' );
+		echo 'null';
+		exit;
+	}
 }
 
 // Get the randomization fields.
@@ -61,7 +67,7 @@ echo '<script type="text/javascript">',
 
 <form method="post" id="batch-rando-frm">
  <table class="dataTable cell-border no-footer">
-  <thead>
+  <thead style="position:sticky;top:0px">
    <tr>
     <th>Record</th>
     <th>Randomize</th>
@@ -75,7 +81,7 @@ for ( $i = 1; $i < $recsPerRow; $i++ )
 	{
 
 ?>
-    <th></th>
+    <th style="width:15px"></th>
     <th>Record</th>
     <th>Randomize</th>
 <?php
@@ -180,7 +186,7 @@ foreach ( $listRecords as $recordID => $infoRecord )
 	}
 	$count++;
 }
-if ( count( $listRecords ) % $recsPerRow != 0 )
+if ( count( $listRecords ) > $recsPerRow && count( $listRecords ) % $recsPerRow != 0 )
 {
 	echo str_repeat( "   <td></td>\n", ( $recsPerRow - count( $listRecords ) % $recsPerRow ) * 3 );
 }
@@ -200,12 +206,60 @@ if ( count( $listRecords ) % $recsPerRow != 0 )
  <p>&nbsp;</p>
  <p>
   <input type="hidden" name="csrf_token" value="<?php echo System::getCsrfToken(); ?>">
-  <button class="jqbuttonmed ui-button ui-corner-all ui-widget"
-          onclick="return confirm('Randomize the selected records?')">
+  <button id="batch-rando-button" class="jqbuttonmed ui-button ui-corner-all ui-widget"
+          onclick="doBatchRando();return false">
    <span style="vertical-align:middle;color:green"><i class="fas fa-random"></i> Randomize selected</span>
   </button>
  </p>
 </form>
+<script type="text/javascript">
+  function doBatchRando()
+  {
+    if ( confirm('Randomize the selected records?') )
+    {
+      var vSelected = $('#batch-rando-frm input[type=checkbox]:checked')
+      var vButton = $('#batch-rando-button')
+      vButton.css('display', 'none')
+      vButton.after('<progress id="batch-rando-progress" value="0"></progress>')
+      var vProgress = $('#batch-rando-progress')[0]
+      vProgress.max = vSelected.length
+      for ( var i = 0; i < vSelected.length; i++ )
+      {
+        (function ()
+        {
+          var vPostData = vSelected[i].value
+          var vIndex = i
+          var vRandoReq = setInterval( function ()
+          {
+            if ( vProgress.value == vIndex )
+            {
+              clearInterval( vRandoReq )
+              $.ajax( { url : '<?php echo $module->getUrl( 'batch_rando.php' ); ?>',
+                        method : 'POST',
+                        data : { 'rando_record[]' : vPostData,
+                                 csrf_token : $('[name=csrf_token')[0].value },
+                        headers : { 'X-RC-Min-Batch' : '1' },
+                        dataType : 'json',
+                        success : function ( result )
+                        {
+                          vProgress.value++
+                        }
+                      } )
+            }
+          }, 250 )
+        })()
+      }
+      var vCheckComplete = setInterval( function()
+      {
+        if ( vProgress.value == vProgress.max )
+        {
+          window.location = '<?php echo $module->getUrl( 'batch_rando.php' ); ?>'
+          clearInterval( vCheckComplete )
+        }
+      }, 500 )
+    }
+  }
+</script>
 
 <?php
 
