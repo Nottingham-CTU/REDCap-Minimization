@@ -43,7 +43,7 @@ action tag on them.
 ### Field to store the date/time of randomization
 The field where the date/time of randomization will be stored. Like the randomization, fake
 randomization, and diagnostic output fields, a value will only be saved for this field if
-randomization is successful. Use a text field for this, optionally with a *datetime w/ seconds*
+randomization is successful. Use a text field for this, optionally with a date or datetime
 validation type (which will display the date in the specified format).
 
 ### Timezone for randomization date/time
@@ -126,6 +126,7 @@ JSON object. For best results, the diagnostic output field should be of the **No
   * **final**: Totals following adjustment for allocation ratio
   * **base**: Totals prior to adjustment for allocation ratio
   * **fields**: The per-field totals that sum to the base totals
+* **minim_alloc**: List of the randomization allocations, in minimized order
 * **minim_random**: Details of an applied random factor (if no random factor, value is "none")
   * **initial**: Whether this is one of the initial random allocations before minimization is used
   * **factor**: Which random factor has been used

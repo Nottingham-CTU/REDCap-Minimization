@@ -606,6 +606,21 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$dateValue = date( 'Y-m-d H:i:s' );
 			}
+			// Adjust the date/time value if a date or datetime (without seconds) field is used.
+			$dateFieldType =
+				\REDCap::getDataDictionary( 'array', false, $dateField
+					)[$dateField]['text_validation_type_or_show_slider_number'];
+			if ( substr( $dateFieldType, 0, 4 ) == 'date' )
+			{
+				if ( substr( $dateFieldType, 0, 8 ) != 'datetime' )
+				{
+					$dateValue = substr( $dateValue, 0, 10 );
+				}
+				elseif ( substr( $dateFieldType, 0, 16 ) != 'datetime_seconds' )
+				{
+					$dateValue = substr( $dateValue, 0, -3 );
+				}
+			}
 		}
 
 		// Perform a fake randomization if required.
@@ -651,9 +666,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					$diagData['minim_values']["$eventName.$fieldName"] = $value;
 				}
 			}
-			$diagData['minim_totals'] = [ 'final' => $listAdjustedTotals,
-			                              'base' => $listMinTotals,
-			                              'fields' => [] ];
+			$diagAdjustedTotals = (object)$listAdjustedTotals;
+			$diagMinTotals = (object)$listMinTotals;
+			$diagMinFieldCodes = [];
 			foreach ( $listMinFieldTotals as $code => $infoMinField )
 			{
 				foreach ( $infoMinField as $eventNum => $infoMinEvent )
@@ -661,10 +676,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					$eventName = \REDCap::getEventNames( true, true, $eventNum );
 					foreach ( $infoMinEvent as $fieldName => $value )
 					{
-						$diagData['minim_totals']['fields'][$code]["$eventName.$fieldName"] = $value;
+						$diagMinFieldCodes[$code]["$eventName.$fieldName"] = $value;
 					}
 				}
 			}
+			$diagMinFields = (object)$diagMinFieldCodes;
+			$diagData['minim_totals'] = [ 'final' => $diagAdjustedTotals,
+			                              'base' => $diagMinTotals,
+			                              'fields' => $diagMinFields ];
+			$diagData['minim_alloc'] = array_keys( $listAdjustedTotals );
 			$diagData['minim_random'] = $randomApplied;
 			if ( $bogusField != '' )
 			{
