@@ -15,7 +15,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 	function redcap_every_page_before_render( $project_id )
 	{
-		if ( $project_id === null )
+		// Stop here if not in a project or not on a data entry page.
+		if ( $project_id === null ||
+		     substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 10 ) != 'DataEntry/' )
 		{
 			return;
 		}
