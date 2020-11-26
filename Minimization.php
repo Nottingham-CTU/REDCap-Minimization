@@ -237,11 +237,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			// Attempt randomization and get status (true if successful, otherwise error message).
 			$status = $this->performRando( $record );
-			// If randomization failed, save the error message to the session. This will be used
-			// on the next page load to display an alert.
+			// If randomization failed...
 			if ( $status !== true )
 			{
+				// Save the error message to the session.
+				// This will be used on the next page load to display an alert.
 				$_SESSION['module_minimization_message'] = $status;
+				// Reset the form status to incomplete (if reset option enabled).
+				if ( $this->getProjectSetting( 'rando-submit-status-reset' ) )
+				{
+					\REDCap::saveData( 'array', [ $record =>
+					                              [ $event_id =>
+					                                [ $instrument . '_complete' => '0' ] ] ] );
+				}
 			}
 		}
 	}

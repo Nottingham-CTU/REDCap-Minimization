@@ -97,6 +97,11 @@ Instead of presenting a *randomize* button in place of the randomization field w
 to perform randomization, the randomization can be performed automatically when a form is submitted.
 It is possible to choose a form other than the one on which the randomization field appears.
 
+#### Reset form status to incomplete on randomization failure
+If this option is enabled, the submitted form triggering the randomization will have its status
+reset to incomplete if the randomization fails. This can help give a visual indication of failed
+randomizations on the record status dashboard and the record home page.
+
 ### Random factor
 Optionally add a random factor, so the minimized allocation is not chosen every time. A description
 of each random factor can be found below under *randomization algorithm*. If using a random factor,

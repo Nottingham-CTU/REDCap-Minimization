@@ -180,6 +180,12 @@
 			"type" : "form-list"
 		},
 		{
+			"key" : "rando-submit-status-reset",
+			"name" : "Reset form status to incomplete on randomization failure",
+			"type" : "checkbox",
+			"branchingLogic" : { "field" : "rando-submit-form", "op" : "<>", "value" : "" }
+		},
+		{
 			"key" : "space5",
 			"name" : "",
 			"type" : "descriptive"
