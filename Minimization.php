@@ -334,8 +334,34 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$infoNewRecord = $listRecords[$newRecordID];
 
 
+		// If a custom strata is used for counting randomizations for initial random allocations,
+		// get the strata values for this here.
+		$useIRStrata = false;
+		if ( $this->getProjectSetting( 'initial-random' ) != '' &&
+		     $this->getProjectSetting( 'initial-random-strata' ) == 'C' )
+		{
+			$useIRStrata = true;
+			$listIRStratEvents = $this->getProjectSetting( 'strat-event' );
+			$listIRStratFields = $this->getProjectSetting( 'strat-field' );
+			$listIRStratValues = [];
+			for ( $i = 0; $i < count($listIRStratEvents); $i++ )
+			{
+				$irStratEvent = $listIRStratEvents[$i];
+				$irStratField = $listIRStratFields[$i];
+				if ( $infoNewRecord[$irStratEvent][$irStratField] == '' )
+				{
+					return $this->logRandoFailure( "Field $stratField missing.", $newRecordID );
+				}
+				$listIRStratValues[$irStratEvent][$irStratField] =
+						$infoNewRecord[$irStratEvent][$irStratField];
+			}
+		}
+
+
 		// Remove unrandomized records from the list and perform stratification.
+		// Set and increment the randomization number and strata randomization number.
 		$randoNum = 1;
+		$strataRandoNum = 1;
 		if ( $this->getProjectSetting( 'stratify' ) )
 		{
 			$listStratEvents = $this->getProjectSetting( 'strat-event' );
@@ -354,14 +380,41 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 						$infoNewRecord[$stratEvent][$stratField];
 			}
 		}
+
 		foreach ( $listRecords as $recordID => $infoRecord )
 		{
+			// Do not consider the record being randomized.
 			if ( $recordID == $newRecordID || $infoRecord[$randoEvent][$randoField] == '' )
 			{
 				unset( $listRecords[$recordID] );
 				continue;
 			}
+			// Increment the randomization number.
 			$randoNum++;
+			// If using custom strata for initial random allocations, check here if the record is in
+			// that strata, and increment the strata randomization number if so.
+			if ( $useIRStrata )
+			{
+				$inIRStrata = true;
+				for ( $i = 0; $i < count($listIRStratEvents); $i++ )
+				{
+					$irStratEvent = $listIRStratEvents[$i];
+					$irStratField = $listIRStratFields[$i];
+					if ( $infoRecord[$irStratEvent][$irStratField] !=
+					     $infoNewRecord[$irStratEvent][$irStratField] )
+					{
+						$inIRStrata = false;
+						break;
+					}
+				}
+				if ( $inIRStrata )
+				{
+					$strataRandoNum++;
+				}
+			}
+			// If stratification is enabled, check that the record is in the strata and disregard it
+			// if not. If using the randomization strata for initial random allocations, increment
+			// the strata randomization number for records in the strata.
 			if ( $this->getProjectSetting( 'stratify' ) )
 			{
 				for ( $i = 0; $i < count($listStratEvents); $i++ )
@@ -375,7 +428,20 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 						continue 2;
 					}
 				}
+				if ( $this->getProjectSetting( 'initial-random-strata' ) == 'S' )
+				{
+					$strataRandoNum++;
+				}
 			}
+		}
+
+		// If initial random allocations are not being used, or if they are based on the project-
+		// wide randomization count, set the strata randomization number equal to the randomization
+		// number.
+		if ( $this->getProjectSetting( 'initial-random' ) == '' ||
+		     $this->getProjectSetting( 'initial-random-strata' ) == '' )
+		{
+			$strataRandoNum = $randoNum;
 		}
 
 
@@ -565,6 +631,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$listAdjustedCodes = array_keys( $listAdjustedTotals );
 		$randoCode = array_shift( $listAdjustedCodes );
 		$initialRandom = $this->getProjectSetting( 'initial-random' );
+		$initialRandomStrata = ( $this->getProjectSetting( 'initial-random-strata' ) != '' );
 		$randomFactor = $this->getProjectSetting( 'random-factor' );
 		$randomPercent = $this->getProjectSetting( 'random-percent' );
 		$randomApplied = [ 'initial' => false, 'factor' => null,
@@ -575,11 +642,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$listRandoProportional =
 					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
 		}
-		if ( $initialRandom != '' && $randoNum <= $initialRandom )
+		if ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
 		{
 			// Always allocate randomly for the specified number of initial records.
 			$randomApplied['initial'] = true;
-			$randomApplied['details'] = 'randomization number (' . $randoNum . ') <= ' .
+			$randomApplied['details'] = ( $initialRandomStrata ? 'strata ' : '' ) .
+			                            'randomization number (' . $strataRandoNum . ') <= ' .
 			                            $initialRandom . ', allocation chosen randomly';
 			$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
 			$randoCode = $listRandoProportional[$randoValue];
@@ -895,10 +963,35 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$errMsg .= "\n- % randomizations using random factor must be between 0 and 100";
 		}
 
-		if ( $settings['initial-random'] != '' &&
-		     ! preg_match( '/^(0|[1-9][0-9]*)$/', $settings['initial-random'] ) )
+		// If initial random allocations is specified...
+		if ( $settings['initial-random'] != '' )
 		{
-			$errMsg .= "\n- Number of initial random allocations must be an integer";
+			// Check that the number of allocations is an integer value.
+			if ( ! preg_match( '/^(0|[1-9][0-9]*)$/', $settings['initial-random'] ) )
+			{
+				$errMsg .= "\n- Number of initial random allocations must be an integer";
+			}
+			
+			// Check that 'use randomization strata' is only chosen if stratification enabled.
+			if ( $settings['initial-random-strata'] == 'S' && ! $settings['stratify'] )
+			{
+				$errMsg .= "\n- Cannot use randomization strata for initial random allocations " .
+				           "as stratification disabled";
+			}
+			
+			// If using custom strata, check that the variables are correctly specified.
+			if ( $settings['initial-random-strata'] == 'C' )
+			{
+				for ( $i = 0; $i < count( $settings['ir-stratification'] ); $i++ )
+				{
+					if ( $settings['ir-strat-event'][$i] == '' ||
+					     $settings['ir-strat-field'][$i] == '' )
+					{
+						$errMsg .= "\n- Variable " . ($i+1) . " for initial random allocation " .
+						           "strata is missing or invalid";
+					}
+				}
+			}
 		}
 
 		if ( $errMsg != '' )

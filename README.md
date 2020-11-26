@@ -112,6 +112,17 @@ a value greater than 0 and less than 50.
 If specified, the first records to be randomized, up to the number specified, will be allocated
 randomly rather than by minimization.
 
+#### Count records within strata when performing initial random allocations
+This setting determines how to count the existing records when determining whether the new record is
+one of the initial records allocated randomly.
+
+* **No strata** will count all records in the project, so the initial specified number of records
+  *project-wide* are allocated randomly
+* **Use randomization strata** will count only the records with matching stratification variables,
+  so the initial specified number of records *in each strata* are allocated randomly
+* **Use custom strata** will apply the per-strata approach, but with a secondary strata defined
+  exclusively for this purpose
+
 
 ## Diagnostic output
 
