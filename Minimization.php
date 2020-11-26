@@ -208,7 +208,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			// Show the text or button in place of the hidden field.
 ?>
     $('tr[sq_id=<?php echo $randoField; ?>] [name=<?php
-			echo $randoField; ?>]')[0].before( vRandoDetails )
+			echo $randoField; ?>]').before( vRandoDetails )
   })()
 </script>
 <?php
@@ -470,10 +470,26 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 
 
-		// Divide the minimization totals by the allocation ratio, and sort lowest to highest.
-		// Minimization totals are multiplied by the lowest common multiple of the allocation ratios
-		// first, so the values following division are still integers.
-		// If two totals are equal, sort randomly.
+		// Generate a random value for each randomization code, which will be used during
+		// minimization when the minimization totals are equal. If a generated random value is
+		// equal to a previously generated random value, it is regenerated so that the random values
+		// are guaranteed to be unique.
+		$listRandomValues = [];
+		$randomRange = count( $listRandoCodes ) * 100;
+		foreach ( $listRandoCodes as $code )
+		{
+			do
+			{
+				$randomValue = random_int( 1, $randomRange );
+			}
+			while ( in_array( $randomValue, $listRandomValues ) );
+			$listRandomValues[$code] = $randomValue;
+		}
+
+
+		// Determine the lowest common multiple of the allocation ratios. When dividing the
+		// minimization totals by the allocation ratio, the totals are first multiplied by the
+		// lowest common multiple. This ensures the values following division are still integers.
 		$ratioCommonMultiple =
 			array_reduce( $listCodeRatios, function ( $carry, $item )
 			{
@@ -503,20 +519,39 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}, 0 );
 
+		// Multiply each minimization total by the lowest common multiple, then divide by the
+		// allocation ratio.
 		$listAdjustedTotals = [];
 		foreach ( $listMinTotals as $code => $total )
 		{
 			$listAdjustedTotals[$code] = ( $total * $ratioCommonMultiple ) / $listCodeRatios[$code];
 		}
 
+
+		// Include the random values generated earlier alongside the adjusted minimization totals,
+		// ready for sorting.
+		foreach ( $listAdjustedTotals as $code => $total )
+		{
+			$listAdjustedTotals[$code] = [ 'total' => $total,
+			                               'random' => $listRandomValues[$code] ];
+		}
+
+		// Sort the allocations by adjusted minimization total.
+		// If two totals are equal, sort instead using the random values.
 		uasort( $listAdjustedTotals, function( $a, $b )
 		{
-			if ( $a == $b )
+			if ( $a['total'] == $b['total'] )
 			{
-				return random_int( 0, 1 ) ? -1 : 1;
+				return ( $a['random'] < $b['random'] ) ? -1 : 1;
 			}
-			return ( $a < $b ) ? -1 : 1;
+			return ( $a['total'] < $b['total'] ) ? -1 : 1;
 		});
+
+		// Remove the random values from the list of adjusted minimization totals.
+		foreach ( $listAdjustedTotals as $code => $total )
+		{
+			$listAdjustedTotals[$code] = $total['total'];
+		}
 
 		// Perform the randomization.
 		$listAdjustedCodes = array_keys( $listAdjustedTotals );
@@ -683,9 +718,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}
 			$diagMinFields = (object)$diagMinFieldCodes;
+			$diagMinRandom = (object)$listRandomValues;
 			$diagData['minim_totals'] = [ 'final' => $diagAdjustedTotals,
 			                              'base' => $diagMinTotals,
-			                              'fields' => $diagMinFields ];
+			                              'fields' => $diagMinFields,
+			                              'random' => $diagMinRandom ];
 			$diagData['minim_alloc'] = array_keys( $listAdjustedTotals );
 			$diagData['minim_random'] = $randomApplied;
 			if ( $bogusField != '' )
