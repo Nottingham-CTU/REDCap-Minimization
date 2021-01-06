@@ -341,8 +341,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		     $this->getProjectSetting( 'initial-random-strata' ) == 'C' )
 		{
 			$useIRStrata = true;
-			$listIRStratEvents = $this->getProjectSetting( 'strat-event' );
-			$listIRStratFields = $this->getProjectSetting( 'strat-field' );
+			$listIRStratEvents = $this->getProjectSetting( 'ir-strat-event' );
+			$listIRStratFields = $this->getProjectSetting( 'ir-strat-field' );
 			$listIRStratValues = [];
 			for ( $i = 0; $i < count($listIRStratEvents); $i++ )
 			{
@@ -971,14 +971,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$errMsg .= "\n- Number of initial random allocations must be an integer";
 			}
-			
+
 			// Check that 'use randomization strata' is only chosen if stratification enabled.
 			if ( $settings['initial-random-strata'] == 'S' && ! $settings['stratify'] )
 			{
 				$errMsg .= "\n- Cannot use randomization strata for initial random allocations " .
 				           "as stratification disabled";
 			}
-			
+
 			// If using custom strata, check that the variables are correctly specified.
 			if ( $settings['initial-random-strata'] == 'C' )
 			{
