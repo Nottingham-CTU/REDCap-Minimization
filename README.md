@@ -95,7 +95,13 @@ the minimization variables (adjusted for ratio).
 ### Automatically randomize on submission of form
 Instead of presenting a *randomize* button in place of the randomization field which can be clicked
 to perform randomization, the randomization can be performed automatically when a form is submitted.
-It is possible to choose a form other than the one on which the randomization field appears.
+The randomization will only be performed if the form status has been set to complete. It is possible
+to choose a form other than the one on which the randomization field appears.
+
+#### Reset form status to incomplete on randomization failure
+If this option is enabled, the submitted form triggering the randomization will have its status
+reset to incomplete if the randomization fails. This can help give a visual indication of failed
+randomizations on the record status dashboard and the record home page.
 
 ### Random factor
 Optionally add a random factor, so the minimized allocation is not chosen every time. A description
@@ -106,6 +112,17 @@ a value greater than 0 and less than 50.
 ### Number of initial random allocations
 If specified, the first records to be randomized, up to the number specified, will be allocated
 randomly rather than by minimization.
+
+#### Count records within strata when performing initial random allocations
+This setting determines how to count the existing records when determining whether the new record is
+one of the initial records allocated randomly.
+
+* **No strata** will count all records in the project, so the initial specified number of records
+  *project-wide* are allocated randomly
+* **Use randomization strata** will count only the records with matching stratification variables,
+  so the initial specified number of records *in each strata* are allocated randomly
+* **Use custom strata** will apply the per-strata approach, but with a secondary strata defined
+  exclusively for this purpose
 
 
 ## Diagnostic output
@@ -126,6 +143,7 @@ JSON object. For best results, the diagnostic output field should be of the **No
   * **final**: Totals following adjustment for allocation ratio
   * **base**: Totals prior to adjustment for allocation ratio
   * **fields**: The per-field totals that sum to the base totals
+  * **random**: Random numbers used for minimization when the minimization totals are equal
 * **minim_alloc**: List of the randomization allocations, in minimized order
 * **minim_random**: Details of an applied random factor (if no random factor, value is "none")
   * **initial**: Whether this is one of the initial random allocations before minimization is used
@@ -170,11 +188,13 @@ The algorithm used for minimization is as follows:
    * The division step reduces the minimization total, making it more likely that a record is
      randomized to that allocation. For example, an allocation with ratio 2 will be used twice as
      much as an allocation with ratio 1.
-7. Perform the randomization. This is done by ordering the allocations by minimization total and
+7. Generate a unique random number for each allocation.
+8. Perform the randomization. This is done by ordering the allocations by minimization total and
    selecting the allocation with the smallest total.
+   * If the minimization totals are equal, the random numbers are used instead.
    * A separate **proportional list** of allocation codes (in which each code appears ratio times)
      is also generated, which is used for some of the random factors and the fake allocation.
-8. Apply the random factor, if applicable. The random factor will be applied for the specified
+9. Apply the random factor, if applicable. The random factor will be applied for the specified
    percentage of randomizations.
    * If an initial number of records to allocate randomly is specified, and the number of records
      randomized so far (including the current one) is less than or equal to the initial number, the

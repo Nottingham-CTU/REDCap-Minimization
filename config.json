@@ -180,6 +180,12 @@
 			"type" : "form-list"
 		},
 		{
+			"key" : "rando-submit-status-reset",
+			"name" : "Reset form status to incomplete on randomization failure",
+			"type" : "checkbox",
+			"branchingLogic" : { "field" : "rando-submit-form", "op" : "<>", "value" : "" }
+		},
+		{
 			"key" : "space5",
 			"name" : "",
 			"type" : "descriptive"
@@ -209,6 +215,36 @@
 			"key" : "initial-random",
 			"name" : "Number of initial random allocations<br>(optional)",
 			"type" : "text"
+		},
+		{
+			"key" : "initial-random-strata",
+			"name" : "Count records within strata when performing initial random allocations",
+			"type" : "radio",
+			"choices" : [
+				{ "value" : "", "name" : "No strata (count all records in project)" },
+				{ "value" : "S", "name" : "Use randomization strata" },
+				{ "value" : "C", "name" : "Use custom strata" }
+			],
+			"branchingLogic" : { "field" : "initial-random", "op" : "<>", "value" : "" }
+		},
+		{
+			"key" : "ir-stratification",
+			"name" : "Stratification variable",
+			"type" : "sub_settings",
+			"branchingLogic" : { "field" : "initial-random-strata", "value" : "C" },
+			"repeatable" : true,
+			"sub_settings" : [
+				{
+					"key" : "ir-strat-event",
+					"name" : "Event",
+					"type" : "event-list"
+				},
+				{
+					"key" : "ir-strat-field",
+					"name" : "Field",
+					"type" : "field-list"
+				}
+			]
 		}
 	]
 }
