@@ -756,9 +756,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				foreach ( $listStratValues as $eventNum => $infoStratEvent )
 				{
 					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					if ( $eventName != '' )
+					{
+						$eventName .= '.';
+					}
 					foreach ( $infoStratEvent as $fieldName => $value )
 					{
-						$diagData['strata_values']["$eventName.$fieldName"] = $value;
+						$diagData['strata_values']["$eventName$fieldName"] = $value;
 					}
 				}
 				$diagData['strata_records'] = count( $listRecords );
@@ -774,9 +778,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			foreach ( $listNewMinValues as $eventNum => $infoMinEvent )
 			{
 				$eventName = \REDCap::getEventNames( true, true, $eventNum );
+				if ( $eventName != '' )
+				{
+					$eventName .= '.';
+				}
 				foreach ( $infoMinEvent as $fieldName => $value )
 				{
-					$diagData['minim_values']["$eventName.$fieldName"] = $value;
+					$diagData['minim_values']["$eventName$fieldName"] = $value;
 				}
 			}
 			$diagAdjustedTotals = (object)$listAdjustedTotals;
@@ -787,9 +795,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				foreach ( $infoMinField as $eventNum => $infoMinEvent )
 				{
 					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					if ( $eventName != '' )
+					{
+						$eventName .= '.';
+					}
 					foreach ( $infoMinEvent as $fieldName => $value )
 					{
-						$diagMinFieldCodes[$code]["$eventName.$fieldName"] = $value;
+						$diagMinFieldCodes[$code]["$eventName$fieldName"] = $value;
 					}
 				}
 			}
