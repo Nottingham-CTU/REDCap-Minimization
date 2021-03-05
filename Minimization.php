@@ -350,7 +350,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$irStratField = $listIRStratFields[$i];
 				if ( $infoNewRecord[$irStratEvent][$irStratField] == '' )
 				{
-					return $this->logRandoFailure( "Field $stratField missing.", $newRecordID );
+					return $this->logRandoFailure( "Field $irStratField missing.", $newRecordID );
 				}
 				$listIRStratValues[$irStratEvent][$irStratField] =
 						$infoNewRecord[$irStratEvent][$irStratField];
@@ -527,6 +527,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			// Get the existing record's randomization allocation.
 			$existingCode = $infoRecord[$randoEvent][$randoField];
+			if ( ! in_array( $existingCode, $listRandoCodes ) )
+			{
+				// If the existing record's allocation is not one of the defined allocation codes,
+				// then skip it.
+				continue;
+			}
 			for ( $i = 0; $i < count( $listMinFields ); $i++ )
 			{
 				// Increment the minimization totals where the minimization field value on the new
