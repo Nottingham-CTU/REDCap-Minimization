@@ -1,7 +1,9 @@
 {
 	"name" : "Minimization",
+	"tt_name" : "module_name",
 	"namespace" : "Nottingham\\Minimization",
 	"description" : "Randomize participants with a minimization algorithm.",
+	"tt_description" : "module_desc",
 	"authors": [
 		{
 			"name": "Richard Dooley",
@@ -19,43 +21,54 @@
 	"compatibility" : { "redcap-version-min" : "9.6.5" },
 	"links" : {
 		"project" : [
-			{ "name" : "Batch Randomization", "icon" : "far fa-list-alt", "url" : "batch_rando.php" }
+			{
+				"name" : "Batch Randomization",
+				"tt_name" : "module_link_batch",
+				"icon" : "far fa-list-alt",
+				"url" : "batch_rando.php"
+			}
 		]
 	},
 	"project-settings" : [
 		{
 			"key" : "rando-event",
 			"name" : "Randomization event",
+			"tt_name" : "setting_rando_event",
 			"type" : "event-list"
 		},
 		{
 			"key" : "rando-field",
 			"name" : "Randomization field",
+			"tt_name" : "setting_rando_field",
 			"type" : "field-list"
 		},
 		{
 			"key" : "rando-date-field",
 			"name" : "Field to store the date/time of randomization<br>(optional)",
+			"tt_name" : "setting_rando_date_field",
 			"type" : "field-list"
 		},
 		{
 			"key" : "rando-date-tz",
 			"name" : "Timezone for randomization date/time",
+			"tt_name" : "setting_rando_date_tz",
 			"type" : "radio",
 			"choices" : [
-				{ "value" : "U", "name" : "UTC" },
-				{ "value" : "S", "name" : "Server timezone" }
+				{ "value" : "U", "name" : "UTC", "tt_name" : "option_rando_date_tz_u" },
+				{ "value" : "S", "name" : "Server timezone", "tt_name" : "option_rando_date_tz_s" }
 			],
 			"branchingLogic" : { "field" : "rando-date-field", "op" : "<>", "value" : "" }
 		},
 		{
 			"key" : "bogus-field",
 			"name" : "Field to store a fake randomization allocation<br>e.g. for blinded extracts<br>(optional)",
+			"tt_name" : "setting_rando_bogus_field",
 			"type" : "field-list"
 		},
 		{
 			"key" : "diag-field",
 			"name" : "Field to store diagnostic output for the randomization<br>(optional)",
+			"tt_name" : "setting_rando_diag_field",
 			"type" : "field-list"
 		},
 		{
@@ -66,11 +79,13 @@
 		{
 			"key" : "stratify",
 			"name" : "Use stratification variables",
+			"tt_name" : "setting_stratify",
 			"type" : "checkbox"
 		},
 		{
 			"key" : "stratification",
 			"name" : "Stratification variable",
+			"tt_name" : "setting_stratification",
 			"type" : "sub_settings",
 			"branchingLogic" : { "field" : "stratify", "value" : true },
 			"repeatable" : true,
@@ -78,11 +93,13 @@
 				{
 					"key" : "strat-event",
 					"name" : "Event",
+					"tt_name" : "setting_event",
 					"type" : "event-list"
 				},
 				{
 					"key" : "strat-field",
 					"name" : "Field",
+					"tt_name" : "setting_field",
 					"type" : "field-list"
 				}
 			]
@@ -95,17 +112,20 @@
 		{
 			"key" : "mode-variable",
 			"name" : "Use multiple minimization modes",
+			"tt_name" : "setting_mode_variable",
 			"type" : "checkbox"
 		},
 		{
 			"key" : "mode-event",
 			"name" : "Minimization mode event",
+			"tt_name" : "setting_mode_event",
 			"type" : "event-list",
 			"branchingLogic" : { "field" : "mode-variable", "value" : true }
 		},
 		{
 			"key" : "mode-field",
 			"name" : "Minimization mode field",
+			"tt_name" : "setting_mode_field",
 			"type" : "field-list",
 			"branchingLogic" : { "field" : "mode-variable", "value" : true }
 		},
@@ -117,34 +137,40 @@
 		{
 			"key" : "mode",
 			"name" : "Minimization mode",
+			"tt_name" : "setting_mode",
 			"type" : "sub_settings",
 			"repeatable" : true,
 			"sub_settings" : [
 				{
 					"key" : "minim-mode",
 					"name" : "Minimization mode value",
+					"tt_name" : "setting_minim_mode",
 					"type" : "text",
 					"branchingLogic" : { "field" : "mode-variable", "value" : true }
 				},
 				{
 					"key" : "minim-codes",
 					"name" : "Randomization allocation",
+					"tt_name" : "setting_minim_codes",
 					"type" : "sub_settings",
 					"repeatable" : true,
 					"sub_settings" : [
 						{
 							"key" : "rando-code",
 							"name" : "Allocation code",
+							"tt_name" : "setting_rando_code",
 							"type" : "text"
 						},
 						{
 							"key" : "rando-desc",
 							"name" : "Allocation description",
+							"tt_name" : "setting_rando_desc",
 							"type" : "text"
 						},
 						{
 							"key" : "rando-ratio",
 							"name" : "Allocation ratio",
+							"tt_name" : "setting_rando_ratio",
 							"type" : "text"
 						}
 					]
@@ -152,17 +178,20 @@
 				{
 					"key" : "minim-vars",
 					"name" : "Minimization variable",
+					"tt_name" : "setting_minim_vars",
 					"type" : "sub_settings",
 					"repeatable" : true,
 					"sub_settings" : [
 						{
 							"key" : "minim-event",
 							"name" : "Event",
+							"tt_name" : "setting_event",
 							"type" : "event-list"
 						},
 						{
 							"key" : "minim-field",
 							"name" : "Field",
+							"tt_name" : "setting_field",
 							"type" : "field-list"
 						}
 					]
@@ -177,11 +206,13 @@
 		{
 			"key" : "rando-submit-form",
 			"name" : "Automatically randomize on submission of form<br>(optional, must click to randomize if not selected)",
+			"tt_name" : "setting_rando_submit_form",
 			"type" : "form-list"
 		},
 		{
 			"key" : "rando-submit-status-reset",
 			"name" : "Reset form status to incomplete on randomization failure",
+			"tt_name" : "setting_rando_submit_status_reset",
 			"type" : "checkbox",
 			"branchingLogic" : { "field" : "rando-submit-form", "op" : "<>", "value" : "" }
 		},
@@ -193,16 +224,30 @@
 		{
 			"key" : "random-factor",
 			"name" : "Random factor<br>(optional)",
+			"tt_name" : "setting_random_factor",
 			"type" : "dropdown",
 			"choices" : [
-				{ "value" : "S", "name" : "Skip allocation (once)" },
-				{ "value" : "C", "name" : "Skip allocation (compounding)" },
-				{ "value" : "R", "name" : "Allocate randomly" }
+				{
+					"value" : "S",
+					"name" : "Skip allocation (once)",
+					"tt_name" : "option_random_factor_s"
+				},
+				{
+					"value" : "C",
+					"name" : "Skip allocation (compounding)",
+					"tt_name" : "option_random_factor_c"
+				},
+				{
+					"value" : "R",
+					"name" : "Allocate randomly",
+					"tt_name" : "option_random_factor_r"
+				}
 			]
 		},
 		{
 			"key" : "random-percent",
 			"name" : "% of randomizations to use the random factor",
+			"tt_name" : "setting_random_percent",
 			"type" : "text",
 			"branchingLogic" : { "field" : "random-factor", "op" : "<>", "value" : "" }
 		},
@@ -214,22 +259,37 @@
 		{
 			"key" : "initial-random",
 			"name" : "Number of initial random allocations<br>(optional)",
+			"tt_name" : "setting_initial_random",
 			"type" : "text"
 		},
 		{
 			"key" : "initial-random-strata",
 			"name" : "Count records within strata when performing initial random allocations",
+			"tt_name" : "setting_initial_random_strata",
 			"type" : "radio",
 			"choices" : [
-				{ "value" : "", "name" : "No strata (count all records in project)" },
-				{ "value" : "S", "name" : "Use randomization strata" },
-				{ "value" : "C", "name" : "Use custom strata" }
+				{
+					"value" : "",
+					"name" : "No strata (count all records in project)",
+					"tt_name" : "option_initial_random_strata"
+				},
+				{
+					"value" : "S",
+					"name" : "Use randomization strata",
+					"tt_name" : "option_initial_random_strata_s"
+				},
+				{
+					"value" : "C",
+					"name" : "Use custom strata",
+					"tt_name" : "option_initial_random_strata_c"
+				}
 			],
 			"branchingLogic" : { "field" : "initial-random", "op" : "<>", "value" : "" }
 		},
 		{
 			"key" : "ir-stratification",
 			"name" : "Stratification variable",
+			"tt_name" : "setting_stratification",
 			"type" : "sub_settings",
 			"branchingLogic" : { "field" : "initial-random-strata", "value" : "C" },
 			"repeatable" : true,
@@ -237,11 +297,13 @@
 				{
 					"key" : "ir-strat-event",
 					"name" : "Event",
+					"tt_name" : "setting_event",
 					"type" : "event-list"
 				},
 				{
 					"key" : "ir-strat-field",
 					"name" : "Field",
+					"tt_name" : "setting_field",
 					"type" : "field-list"
 				}
 			]
