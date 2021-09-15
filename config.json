@@ -26,6 +26,12 @@
 				"tt_name" : "module_link_batch",
 				"icon" : "far fa-list-alt",
 				"url" : "batch_rando.php"
+			},
+			{
+				"name" : "Download Minimization Diagnostic",
+				"tt_name" : "module_link_diag",
+				"icon" : "fas fa-file-download",
+				"url" : "diag_download.php"
 			}
 		]
 	},
@@ -307,6 +313,30 @@
 					"type" : "field-list"
 				}
 			]
+		},
+		{
+			"key" : "space7",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "diag-download",
+			"name" : "Diagnostic download mode",
+			"tt_name" : "setting_diag_download",
+			"type" : "radio",
+			"choices" : [
+				{
+					"value" : "",
+					"name" : "Standard",
+					"tt_name" : "option_diag_download"
+				},
+				{
+					"value" : "O",
+					"name" : "Omit event/arm prefixes",
+					"tt_name" : "option_diag_download_o"
+				}
+			],
+			"branchingLogic" : { "field" : "initial-random", "op" : "<>", "value" : "" }
 		}
 	]
 }

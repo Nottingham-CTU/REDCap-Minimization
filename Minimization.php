@@ -5,10 +5,27 @@ namespace Nottingham\Minimization;
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
 
-	// Show the batch randomization button only to administrators.
+	// Determine whether the module links should be displayed, based on user type/role.
+	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
-		return $this->framework->getUser()->isSuperUser() ? $link : null;
+		// Always hide the diagnostic download link if diagnostics are not being saved.
+		if ( $link['tt_name'] == 'module_link_diag' &&
+		     $this->getProjectSetting( 'diag-field' ) == null )
+		{
+			return null;
+		}
+
+		// If module specific rights enabled, show link based on this.
+		if ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' )
+		{
+			return in_array( 'minimization',
+			                 $this->framework->getUser()->getRights()['external_module_config'] )
+			       ? $link : null;
+		}
+
+		// Otherwise show link based on project setup/design rights.
+		return $this->framework->getUser()->hasDesignRights() ? $link : null;
 	}
 
 
@@ -640,7 +657,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$initialRandomStrata = ( $this->getProjectSetting( 'initial-random-strata' ) != '' );
 		$randomFactor = $this->getProjectSetting( 'random-factor' );
 		$randomPercent = $this->getProjectSetting( 'random-percent' );
-		$randomApplied = [ 'initial' => false, 'factor' => null,
+		$randomApplied = [ 'initial' => false, 'factor' => null, 'threshold' => null,
 		                   'values' => [], 'details' => 'none' ];
 		$listRandoProportional = [];
 		foreach ( $listCodeRatios as $code => $ratio )
@@ -654,6 +671,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
 			$randoCode = $listRandoProportional[$randoValue];
 			$randomApplied['initial'] = true;
+			$randomApplied['threshold'] = $initialRandom;
+			$randomApplied['values'][] = $strataRandoNum;
 			$randomApplied['details'] = $this->tt( 'diag_initial_rand',
 			                                       ( $initialRandomStrata
 			                                         ? $this->tt('diag_initial_rand_strata') : '' ),
@@ -665,9 +684,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			// (i.e. random-percent of random-percent times, skip two allocations, and so on...)
 			$randomApplied['details'] = '';
 			$testPercent = random_int( 0, 1000000 ) / 10000;
+			$randomApplied['factor'] = $randomFactor;
+			$randomApplied['threshold'] = $randomPercent;
 			while ( $testPercent < $randomPercent && count( $listAdjustedCodes ) > 0 )
 			{
-				$randomApplied['factor'] = $randomFactor;
 				$randomApplied['values'][] = $testPercent;
 				$randomApplied['details'] .= ( $randomApplied['details'] == '' ) ? '' : '; ';
 				$randomApplied['details'] .= $this->tt( 'diag_alloc_skipped', $testPercent,
@@ -693,10 +713,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		elseif ( $randomFactor == 'R' ) // allocate randomly
 		{
 			$testPercent = random_int( 0, 1000000 ) / 10000;
+			$randomApplied['factor'] = $randomFactor;
+			$randomApplied['threshold'] = $randomPercent;
+			$randomApplied['values'][] = $testPercent;
 			if ( $testPercent < $randomPercent )
 			{
-				$randomApplied['factor'] = $randomFactor;
-				$randomApplied['values'][] = $testPercent;
 				$randomApplied['details'] = $this->tt( 'diag_rand_rand',
 				                                       $testPercent, $randomPercent );
 				$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
@@ -705,7 +726,6 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 			else
 			{
-				$randomApplied['values'][] = $testPercent;
 				$randomApplied['details'] = $this->tt( 'diag_rand_minim',
 				                                       $testPercent, $randomPercent );
 			}

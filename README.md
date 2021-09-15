@@ -2,7 +2,8 @@
 REDCap External Module: Perform minimization.
 
 *Note: American spellings for minimization and randomization are used throughout for consistency
-with REDCap.*
+with REDCap. Support for British spellings is provided in this module using REDCap's
+internationalization feature.*
 
 This module provides the following functionality:
 
@@ -124,13 +125,17 @@ one of the initial records allocated randomly.
 * **Use custom strata** will apply the per-strata approach, but with a secondary strata defined
   exclusively for this purpose
 
+### Diagnostic download mode
+Select whether headings in the CSV download are standard (includes event/arm prefixes on fields), or
+always omit event/arm prefixes. This only affects longitudinal projects.
+
 
 ## Diagnostic output
 
 If a field is selected for diagnostic output, the following data will be written to the field as a
 JSON object. For best results, the diagnostic output field should be of the **Notes Box** type.
 
-* **num**: Randomization number (order in which the randomizations occurred)
+* **num**: Randomization number (order in which records were randomized)
 * **stratify**: Whether stratification has been used (true/false)
 * **strata_values**: Values of the stratification variables
 * **strata_records**: The number of other records in the strata
@@ -152,10 +157,44 @@ JSON object. For best results, the diagnostic output field should be of the **No
     * S: Skip allocation (once)
     * C: Skip allocation (compounding)
     * R: Allocate randomly
+  * **threshold**: The percentage (or initial number of random allocations) which determines whether
+    minimization is used
   * **values**: Random numbers generated (between 0 and 100) which are compared with the random
     factor percentage value
   * **details**: Text description of the applied random factor
 * **bogus_value**: The index of codes_full used for the fake randomization allocation
+
+If diagnostic output is used, users with design rights (or module specific rights if enabled) can
+download a CSV file of the diagnostic data for all records. The fields in the CSV file are as
+follows:
+
+* _(project record ID field)_
+* _(randomization field)_
+* _(randomization date/time field, if selected)_
+* _(fake randomization allocation field, if selected)_
+* **rando_num**: Randomization number (order in which records were randomized)
+* **stratify**: Whether stratification has been used (1=true/0=false)
+* _(stratification variables)_: If stratification has been used, the value of each stratification
+  variable
+* **strata_records**: If stratification has been used, the number of records in the strata
+* _(minimization variables)_: The value of each minimization variable
+* **minim_alloc_**<i>(n)</i>: The <i>n</i>th most minimized allocation
+* **minim_total_**<i>(code)</i>: The minimization total for allocation <i>code</i>
+* **minim_rtotal_**<i>(code)</i>: The random number for allocation <i>code</i> used for minimization
+  when the minimization totals are equal
+* **minim_initial**: Whether this is one of the initial random allocations before minimization is
+  used (1=true/0=false)
+* **minim_threshold**: The percentage (or initial number of random allocations) which determines
+  whether minimization is used
+* **minim_random_**<i>(n)</i>: The <i>n</i>th random number generated which is compared with the
+  random factor percentage value
+* **minim_random_details**: Text description of the applied random factor
+* **minim_btotal_**<i>(code)</i>: The base minimization total for allocation <i>code</i>, prior to
+  adjusting for the ratios
+* **minim_ftotal_**<i>(code)</i>**_**<i>(field)</i>: The minimization total for allocation
+  <i>code</i> for variable <i>field</i>
+* **minim_max_diff**: The maximum difference between two minimization totals for a field
+
 
 
 ## Randomization algorithm
@@ -191,7 +230,8 @@ The algorithm used for minimization is as follows:
 7. Generate a unique random number for each allocation.
 8. Perform the randomization. This is done by ordering the allocations by minimization total and
    selecting the allocation with the smallest total.
-   * If the minimization totals are equal, the random numbers are used instead.
+   * If the minimization totals are equal, the random numbers from the previous step are used
+     instead.
    * A separate **proportional list** of allocation codes (in which each code appears ratio times)
      is also generated, which is used for some of the random factors and the fake allocation.
 9. Apply the random factor, if applicable. The random factor will be applied for the specified
