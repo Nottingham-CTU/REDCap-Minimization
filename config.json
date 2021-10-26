@@ -335,8 +335,7 @@
 					"name" : "Omit event/arm prefixes",
 					"tt_name" : "option_diag_download_o"
 				}
-			],
-			"branchingLogic" : { "field" : "initial-random", "op" : "<>", "value" : "" }
+			]
 		}
 	]
 }
