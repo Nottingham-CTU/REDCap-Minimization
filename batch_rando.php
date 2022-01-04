@@ -63,14 +63,14 @@ echo '<script type="text/javascript">',
 
 ?>
 
-<div class="projhdr"><i class="far fa-list-alt"></i> Batch Randomization (minimization)</div>
+<div class="projhdr"><i class="far fa-list-alt"></i> <?php echo $module->tt('batch_title'); ?></div>
 
 <form method="post" id="batch-rando-frm">
  <table class="dataTable cell-border no-footer">
   <thead style="position:sticky;top:0px">
    <tr>
-    <th>Record</th>
-    <th>Randomize</th>
+    <th><?php echo $module->tt('record'); ?></th>
+    <th><?php echo $module->tt('rando'); ?></th>
 <?php
 
 // Lay out the records in a grid.
@@ -82,8 +82,8 @@ for ( $i = 1; $i < $recsPerRow; $i++ )
 
 ?>
     <th style="width:15px"></th>
-    <th>Record</th>
-    <th>Randomize</th>
+    <th><?php echo $module->tt('record'); ?></th>
+    <th><?php echo $module->tt('rando'); ?></th>
 <?php
 
 	}
@@ -129,20 +129,21 @@ foreach ( $listRecords as $recordID => $infoRecord )
 	if ( isset( $infoRecord[$randoEvent][$randoField] ) &&
 	     $infoRecord[$randoEvent][$randoField] != '' )
 	{
-		$details = 'Allocation: ' . $infoRecord[$randoEvent][$randoField] .
+		$details = $module->tt('batch_alloc') . ': ' . $infoRecord[$randoEvent][$randoField] .
 		           ' (' . $module->getDescription( $infoRecord[$randoEvent][$randoField] ) . ')';
 		if ( $bogusField != '' )
 		{
-			$details .= "\nFake allocation: " . $infoRecord[$randoEvent][$bogusField] . ' (' .
+			$details .= "\n" . $module->tt('batch_alloc_bogus') . ': ' .
+			            $infoRecord[$randoEvent][$bogusField] . ' (' .
 			            $module->getDescription( $infoRecord[$randoEvent][$bogusField] ) . ')';
 		}
 		if ( $diagField != '' )
 		{
 			$diag = json_decode( $infoRecord[$randoEvent][$diagField], true );
-			$details .= "\n\nRandomization number: " . $diag['num'];
+			$details .= "\n\n" . $module->tt('batch_rando_num') . ': ' . $diag['num'];
 			if ( $diag['stratify'] )
 			{
-				$details .= "\nStratification variables:";
+				$details .= "\n" . $module->tt('batch_strat') . ':';
 				foreach ( $diag['strata_values'] as $fieldName => $value )
 				{
 					$details .= "\n    $fieldName: $value";
@@ -150,21 +151,22 @@ foreach ( $listRecords as $recordID => $infoRecord )
 			}
 			else
 			{
-				$details .= "\nStratification variables: none";
+				$details .= "\n" . $module->tt('batch_strat') . ': none';
 			}
-			$details .= "\nMinimization variables:";
+			$details .= "\n" . $module->tt('batch_minim') . ':';
 			foreach ( $diag['minim_values'] as $fieldName => $value )
 			{
 				$details .= "\n    $fieldName: $value";
 			}
-			$details .= "\nMinimization totals:";
+			$details .= "\n" . $module->tt('batch_totals') . ':';
 			foreach ( $diag['minim_totals']['final'] as $minimCode => $total )
 			{
 				$details .= "\n    $minimCode: $total";
 			}
-			$details .= "\nCodes for random selection:\n   '" .
+			$details .= "\n" . $module->tt('batch_rand_codes') . ":\n   '" .
 			            implode( "', '", $diag['codes_full'] ) . "'";
-			$details .= "\nRandom factor details:\n   " . $diag['minim_random']['details'];
+			$details .= "\n" . $module->tt('batch_rand_factor') . ":\n   " .
+			            $diag['minim_random']['details'];
 		}
 		$details = str_replace( "\n", '&#10;', htmlspecialchars( $details ) );
 
@@ -199,23 +201,29 @@ if ( count( $listRecords ) > $recsPerRow && count( $listRecords ) % $recsPerRow 
   </tbody>
  </table>
  <p>
-  <a href="#" onclick="$('#batch-rando-frm input[type=checkbox]').prop('checked',true);return false">Select All</a>
+  <a href="#" onclick="$('#batch-rando-frm input[type=checkbox]').prop('checked',true);return false"><?php
+echo $module->tt('batch_sel_all');
+?></a>
   |
-  <a href="#" onclick="$('#batch-rando-frm input[type=checkbox]').prop('checked',false);return false">Select None</a>
+  <a href="#" onclick="$('#batch-rando-frm input[type=checkbox]').prop('checked',false);return false"><?php
+echo $module->tt('batch_sel_none');
+?></a>
  </p>
  <p>&nbsp;</p>
  <p>
   <input type="hidden" name="csrf_token" value="<?php echo System::getCsrfToken(); ?>">
   <button id="batch-rando-button" class="jqbuttonmed ui-button ui-corner-all ui-widget"
           onclick="doBatchRando();return false">
-   <span style="vertical-align:middle;color:green"><i class="fas fa-random"></i> Randomize selected</span>
+   <span style="vertical-align:middle;color:green"><i class="fas fa-random"></i> <?php
+echo $module->tt('batch_rando');
+?></span>
   </button>
  </p>
 </form>
 <script type="text/javascript">
   function doBatchRando()
   {
-    if ( confirm('Randomize the selected records?') )
+    if ( confirm('<?php echo $module->tt('batch_rando_confirm'); ?>') )
     {
       var vSelected = $('#batch-rando-frm input[type=checkbox]:checked')
       var vButton = $('#batch-rando-button')

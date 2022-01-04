@@ -5,10 +5,27 @@ namespace Nottingham\Minimization;
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
 
-	// Show the batch randomization button only to administrators.
+	// Determine whether the module links should be displayed, based on user type/role.
+	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
-		return $this->framework->getUser()->isSuperUser() ? $link : null;
+		// Always hide the diagnostic download link if diagnostics are not being saved.
+		if ( $link['tt_name'] == 'module_link_diag' &&
+		     $this->getProjectSetting( 'diag-field' ) == null )
+		{
+			return null;
+		}
+
+		// If module specific rights enabled, show link based on this.
+		if ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' )
+		{
+			return in_array( 'minimization',
+			                 $this->framework->getUser()->getRights()['external_module_config'] )
+			       ? $link : null;
+		}
+
+		// Otherwise show link based on project setup/design rights.
+		return $this->framework->getUser()->hasDesignRights() ? $link : null;
 	}
 
 
@@ -57,7 +74,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	{
 		if ( isset( $_SESSION['module_minimization_message'] ) )
 		{
-			$errMsg = "The record could not be randomized:\n\n" .
+			$errMsg = $this->tt('cannot_rando') . ":\n\n" .
 			          $_SESSION['module_minimization_message'];
 			$errMsg = str_replace( "\n", '\n', addslashes( $errMsg ) );
 			unset( $_SESSION['module_minimization_message'] );
@@ -127,7 +144,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
     vRandoButton.className = 'jqbuttonmed ui-button ui-corner-all ui-widget'
     vRandoButton.onclick = function ()
     {
-      if ( ! confirm( 'Randomize record <?php echo addslashes( $record ); ?>?' ) )
+      if ( ! confirm( '<?php echo $this->tt('rando_record'), ' ', addslashes( $record ); ?>?' ) )
       {
         return false
       }
@@ -166,14 +183,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
                   }
                   else
                   {
-                    alert( 'The record could not be randomized:\n\n' + result.message )
+                    alert( '<?php echo $this->tt('cannot_rando'); ?>:\n\n' + result.message )
                   }
                 }
               } )
       return false
     }
     vRandoButton.innerHTML = '<span style="vertical-align:middle;color:green">' +
-                             '<i class="fas fa-random"></i> Randomize</span>'
+                             '<i class="fas fa-random"></i> <?php echo $this->tt('rando'); ?></span>'
     vRandoDetails.appendChild( vRandoButton )
 <?php
 
@@ -185,8 +202,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 					// Inform the user that randomization is yet to be performed.
 ?>
-    vRandoDetails.innerHTML =
-        'The randomization allocation will show here once randomization has been performed.'
+    vRandoDetails.innerHTML = '<?php echo $this->tt('rando_form_sub'); ?>'
 <?php
 
 
@@ -314,7 +330,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			// If the randomization event and/or field are not defined, treat randomization as
 			// disabled. Therefore this message is not written to the log.
-			return 'Randomization not enabled. The randomization event and field must be defined.';
+			return $this->tt('rando_msg_not_enable');
 		}
 
 
@@ -328,7 +344,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( ! isset( $listRecords[$newRecordID] ) ||
 		     $listRecords[$newRecordID][$randoEvent][$randoField] != '' )
 		{
-			return $this->logRandoFailure( 'Randomization already performed for this record.',
+			return $this->logRandoFailure( $this->tt('rando_msg_performed'),
 			                               $newRecordID );
 		}
 		$infoNewRecord = $listRecords[$newRecordID];
@@ -350,7 +366,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$irStratField = $listIRStratFields[$i];
 				if ( $infoNewRecord[$irStratEvent][$irStratField] == '' )
 				{
-					return $this->logRandoFailure( "Field $irStratField missing.", $newRecordID );
+					return $this->logRandoFailure( $this->tt( 'rando_msg_field_missing',
+					                                          $irStratField ), $newRecordID );
 				}
 				$listIRStratValues[$irStratEvent][$irStratField] =
 						$infoNewRecord[$irStratEvent][$irStratField];
@@ -373,8 +390,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$stratField = $listStratFields[$i];
 				if ( $infoNewRecord[$stratEvent][$stratField] == '' )
 				{
-					return $this->logRandoFailure( "Stratification variable $stratField missing.",
-					                               $newRecordID );
+					return $this->logRandoFailure( $this->tt( 'rando_msg_strat_missing',
+					                                          $stratField ), $newRecordID );
 				}
 				$listStratValues[$stratEvent][$stratField] =
 						$infoNewRecord[$stratEvent][$stratField];
@@ -466,7 +483,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		if ( $minMode < 0 )
 		{
-			return $this->logRandoFailure( "Minimization mode variable $modeField missing.",
+			return $this->logRandoFailure( $this->tt( 'rando_msg_mmode_missing', $modeField ),
 			                               $newRecordID );
 		}
 
@@ -499,7 +516,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$minValue = $infoNewRecord[$minEvent][$minField];
 			if ( $minValue == '' )
 			{
-				return $this->logRandoFailure( "Minimization variable $minField missing.",
+				return $this->logRandoFailure( $this->tt( 'rando_msg_minim_missing', $minField ),
 				                               $newRecordID );
 			}
 			$listNewMinValues[$minEvent][$minField] = $minValue;
@@ -640,7 +657,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$initialRandomStrata = ( $this->getProjectSetting( 'initial-random-strata' ) != '' );
 		$randomFactor = $this->getProjectSetting( 'random-factor' );
 		$randomPercent = $this->getProjectSetting( 'random-percent' );
-		$randomApplied = [ 'initial' => false, 'factor' => null,
+		$randomApplied = [ 'initial' => false, 'factor' => null, 'threshold' => null,
 		                   'values' => [], 'details' => 'none' ];
 		$listRandoProportional = [];
 		foreach ( $listCodeRatios as $code => $ratio )
@@ -651,13 +668,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
 		{
 			// Always allocate randomly for the specified number of initial records.
-			$randomApplied['initial'] = true;
-			$randomApplied['details'] = ( $initialRandomStrata ? 'strata ' : '' ) .
-			                            'randomization number (' . $strataRandoNum . ') <= ' .
-			                            $initialRandom . ', allocation chosen randomly';
 			$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
 			$randoCode = $listRandoProportional[$randoValue];
-			$randomApplied['details'] .= ' (' . $randoValue . ')';
+			$randomApplied['initial'] = true;
+			$randomApplied['threshold'] = $initialRandom;
+			$randomApplied['values'][] = $strataRandoNum;
+			$randomApplied['details'] = $this->tt( 'diag_initial_rand',
+			                                       ( $initialRandomStrata
+			                                         ? $this->tt('diag_initial_rand_strata') : '' ),
+			                                       $strataRandoNum, $initialRandom, $randoValue );
 		}
 		elseif ( $randomFactor == 'S' || $randomFactor == 'C' ) // skip allocation (once/compound)
 		{
@@ -665,14 +684,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			// (i.e. random-percent of random-percent times, skip two allocations, and so on...)
 			$randomApplied['details'] = '';
 			$testPercent = random_int( 0, 1000000 ) / 10000;
+			$randomApplied['factor'] = $randomFactor;
+			$randomApplied['threshold'] = $randomPercent;
 			while ( $testPercent < $randomPercent && count( $listAdjustedCodes ) > 0 )
 			{
-				$randomApplied['factor'] = $randomFactor;
 				$randomApplied['values'][] = $testPercent;
 				$randomApplied['details'] .= ( $randomApplied['details'] == '' ) ? '' : '; ';
-				$randomApplied['details'] .= 'random value (' . $testPercent . ') < ' .
-				                             $randomPercent . ', allocation ' .
-				                             $randoCode . ' skipped';
+				$randomApplied['details'] .= $this->tt( 'diag_alloc_skipped', $testPercent,
+				                                        $randomPercent, $randoCode );
 				$randoCode = array_shift( $listAdjustedCodes );
 				if ( $randomFactor == 'S' )
 				{
@@ -687,28 +706,28 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$randomApplied['values'][] = $testPercent;
 				$randomApplied['details'] .= ( $randomApplied['details'] == '' ) ? '' : '; ';
-				$randomApplied['details'] .= 'random value (' . $testPercent . ') >= ' .
-				                             $randomPercent . ', minimized allocation used';
+				$randomApplied['details'] .= $this->tt( 'diag_alloc_minim',
+				                                        $testPercent, $randomPercent );
 			}
 		}
 		elseif ( $randomFactor == 'R' ) // allocate randomly
 		{
 			$testPercent = random_int( 0, 1000000 ) / 10000;
+			$randomApplied['factor'] = $randomFactor;
+			$randomApplied['threshold'] = $randomPercent;
+			$randomApplied['values'][] = $testPercent;
 			if ( $testPercent < $randomPercent )
 			{
-				$randomApplied['factor'] = $randomFactor;
-				$randomApplied['values'][] = $testPercent;
-				$randomApplied['details'] = 'random value (' . $testPercent . ') < ' .
-				                            $randomPercent . ', allocation chosen randomly';
+				$randomApplied['details'] = $this->tt( 'diag_rand_rand',
+				                                       $testPercent, $randomPercent );
 				$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
 				$randoCode = $listRandoProportional[$randoValue];
 				$randomApplied['details'] .= ' (' . $randoValue . ')';
 			}
 			else
 			{
-				$randomApplied['values'][] = $testPercent;
-				$randomApplied['details'] = 'random value (' . $testPercent . ') >= ' .
-				                            $randomPercent . ', minimized allocation used';
+				$randomApplied['details'] = $this->tt( 'diag_rand_minim',
+				                                       $testPercent, $randomPercent );
 			}
 		}
 
@@ -843,10 +862,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
 		if ( count( $result['errors'] ) > 0 )
 		{
-			return $this->logRandoFailure( "Errors occurred while saving randomization:\n" .
+			return $this->logRandoFailure( $this->tt('rando_save_error') . ":\n" .
 			                               implode( "\n", $result['errors'] ), $newRecordID );
 		}
-		\REDCap::logEvent( 'Randomization (minimization)',
+		\REDCap::logEvent( $this->tt('log_success'),
 		                   ( $randoField .
 		                     ( $dateField == '' ? '' : "\n$dateField" ) .
 		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
@@ -861,7 +880,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	// in the randomization function following logging.
 	function logRandoFailure( $description, $recordID )
 	{
-		\REDCap::logEvent( 'Failed randomization (minimization)', $description, null, $recordID );
+		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID );
 		return $description;
 	}
 
@@ -884,7 +903,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// Check that the rando date/time timezone is specified if a date/time field is specified.
 		if ( $settings['rando-date-field'] != '' && $settings['rando-date-tz'] == '' )
 		{
-			$errMsg .= "\n- A timezone for the randomization date/time must be selected";
+			$errMsg .= "\n- " . $this->tt('validate_setting_tz');
 		}
 
 		// Check that stratification variables are correctly specified.
@@ -894,7 +913,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				if ( $settings['strat-event'][$i] == '' || $settings['strat-field'][$i] == '' )
 				{
-					$errMsg .= "\n- Stratification variable " . ($i+1) . " is missing or invalid";
+					$errMsg .= "\n- " . $this->tt( 'validate_setting_strat', ($i+1) );
 				}
 			}
 		}
@@ -902,15 +921,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// Check that there is only one minimization mode, unless multiple modes selected.
 		if ( !$settings['mode-variable'] && count( $settings['mode'] ) > 1 )
 		{
-			$errMsg .= "\n- Multiple modes is not selected," .
-			           " but more than 1 minimization mode has been entered.";
+			$errMsg .= "\n- " . $this->tt('validate_setting_1mode');
 		}
 
 		// If multiple modes selected, ensure that the mode variable is specified.
 		if ( $settings['mode-variable'] &&
 		     ( $settings['mode-event'] == '' || $settings['mode-field'] == '' ) )
 		{
-			$errMsg .= "\n- Mode variable is missing or invalid";
+			$errMsg .= "\n- " . $this->tt('validate_setting_mode_missing');
 		}
 
 		// Check that the minimization modes have been specified correctly.
@@ -920,7 +938,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			// If using multiple modes, check the mode value has been entered.
 			if ( $settings['mode-variable'] && $settings['minim-mode'][$i] == '' )
 			{
-				$errMsg .= "\n- Minimization mode " . ($i+1) . ": mode value is missing";
+				$errMsg .= "\n- " . $this->tt( 'validate_setting_value_missing', ($i+1) );
 			}
 			// Check that the allocation code, description and ratio have been entered.
 			// Ensure that the allocation ratio is an integer greater than 0.
@@ -928,19 +946,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				if ( $settings['rando-code'][$i][$j] == '' && ( $rando || $i + $j > 0 ) )
 				{
-					$errMsg .= "\n- Minimization mode " . ($i+1) . ": code for allocation " .
-					           ($j+1) . " is missing";
+					$errMsg .= "\n- " .
+					           $this->tt( 'validate_setting_code_missing', ($i+1), ($j+1) );
 				}
 				if ( $settings['rando-desc'][$i][$j] == '' && ( $rando || $i + $j > 0 ) )
 				{
-					$errMsg .= "\n- Minimization mode " . ($i+1) . ": description for allocation " .
-					           ($j+1) . " is missing";
+					$errMsg .= "\n- " .
+					           $this->tt( 'validate_setting_desc_missing', ($i+1), ($j+1) );
 				}
 				if ( !preg_match( '/^[1-9][0-9]*$/', $settings['rando-ratio'][$i][$j] ) &&
 				     ( $rando || $i + $j > 0 ) )
 				{
-					$errMsg .= "\n- Minimization mode " . ($i+1) . ": ratio for allocation " .
-					           ($j+1) . " is missing or invalid (integer required)";
+					$errMsg .= "\n- " .
+					           $this->tt( 'validate_setting_ratio_missing', ($i+1), ($j+1) );
 				}
 				if ( $settings['rando-code'][$i][$j] != '' &&
 				     $settings['rando-desc'][$i][$j] != '' )
@@ -953,10 +971,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					elseif ( $listCodeDescs[ $settings['rando-code'][$i][$j] ] !=
 					         $settings['rando-desc'][$i][$j] )
 					{
-						$errMsg .= "\n- Minimization mode " . ($i+1) . ": code for allocation " .
-						           ($j+1) . " has already been defined with a different " .
-						           "description\n  Please use a different code or ensure the " .
-						           "descriptions match";
+						$errMsg .= "\n- " .
+						           $this->tt( 'validate_setting_code_mismatch', ($i+1), ($j+1) ) .
+						           "\n  " . $this->tt('validate_setting_code_mismatch2');
 					}
 				}
 			}
@@ -967,8 +984,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				       $settings['minim-field'][$i][$j] == '' ) &&
 				     ( $rando || $i + $j > 0 ) )
 				{
-					$errMsg .= "\n- Minimization mode " . ($i+1) . ": minimization variable " .
-					           ($j+1) . " is missing or invalid";
+					$errMsg .= "\n- " .
+					           $this->tt( 'validate_setting_minim_missing', ($i+1), ($j+1) );
 				}
 			}
 		}
@@ -978,7 +995,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		     ( ! is_numeric( $settings['random-percent'] ) || $settings['random-percent'] < 0 ||
 		       $settings['random-percent'] > 100 ) )
 		{
-			$errMsg .= "\n- % randomizations using random factor must be between 0 and 100";
+			$errMsg .= "\n- " . $this->tt('validate_setting_random_pc');
 		}
 
 		// If initial random allocations is specified...
@@ -987,14 +1004,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			// Check that the number of allocations is an integer value.
 			if ( ! preg_match( '/^(0|[1-9][0-9]*)$/', $settings['initial-random'] ) )
 			{
-				$errMsg .= "\n- Number of initial random allocations must be an integer";
+				$errMsg .= "\n- " . $this->tt('validate_setting_random_num');
 			}
 
 			// Check that 'use randomization strata' is only chosen if stratification enabled.
 			if ( $settings['initial-random-strata'] == 'S' && ! $settings['stratify'] )
 			{
-				$errMsg .= "\n- Cannot use randomization strata for initial random allocations " .
-				           "as stratification disabled";
+				$errMsg .= "\n- " . $this->tt('validate_setting_random_strata');
 			}
 
 			// If using custom strata, check that the variables are correctly specified.
@@ -1005,8 +1021,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					if ( $settings['ir-strat-event'][$i] == '' ||
 					     $settings['ir-strat-field'][$i] == '' )
 					{
-						$errMsg .= "\n- Variable " . ($i+1) . " for initial random allocation " .
-						           "strata is missing or invalid";
+						$errMsg .= "\n- " . $this->tt( 'validate_setting_random_var', ($i+1) );
 					}
 				}
 			}
@@ -1014,7 +1029,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 		if ( $errMsg != '' )
 		{
-			return "Your minimization configuration contains errors:$errMsg";
+			return $this->tt('validate_setting') . ":$errMsg";
 		}
 		return null;
 	}
