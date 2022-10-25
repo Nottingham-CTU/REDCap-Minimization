@@ -121,7 +121,7 @@ foreach ( $listRecords as $recordID => $infoRecord )
 	}
 
 ?>
-    <td style="text-align:right"><?php echo htmlspecialchars( $recordID ); ?></td>
+    <td style="text-align:right"><?php echo $module->escapeHTML( $recordID ); ?></td>
 <?php
 
 	// For randomized records, display the randomization icon and show the allocation and
@@ -168,7 +168,7 @@ foreach ( $listRecords as $recordID => $infoRecord )
 			$details .= "\n" . $module->tt('batch_rand_factor') . ":\n   " .
 			            $diag['minim_random']['details'];
 		}
-		$details = str_replace( "\n", '&#10;', htmlspecialchars( $details ) );
+		$details = str_replace( "\n", '&#10;', $module->escapeHTML( $details ) );
 
 ?>
     <td>&nbsp;<i class="fas fa-random" title="<?php echo $details; ?>"></i></td>
@@ -182,7 +182,7 @@ foreach ( $listRecords as $recordID => $infoRecord )
 
 ?>
     <td>&nbsp;<input type="checkbox" checked="checked"
-                     name="rando_record[]" value="<?php echo $recordID; ?>"></td>
+                     name="rando_record[]" value="<?php echo $module->escapeHTML( $recordID ); ?>"></td>
 <?php
 
 	}

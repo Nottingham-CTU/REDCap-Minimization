@@ -272,6 +272,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Escapes text for inclusion in HTML.
+	function escapeHTML( $text )
+	{
+		return htmlspecialchars( $text, ENT_QUOTES );
+	}
+
+
+
 	function getDescription( $code )
 	{
 		// Search for the specified randomization code.
