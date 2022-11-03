@@ -40,18 +40,19 @@ if ( $status === true )
 		if ( $fieldName != '' && $metadata[$fieldName]['form_name'] == $form )
 		{
 			$return['data'][$fieldName] =
-				REDCap::getData( 'array', $record, $fieldName,
-				                 $randoEvent )[$record][$randoEvent][$fieldName];
+				$module->escapeHTML( REDCap::getData( 'array', $record, $fieldName, $randoEvent
+				                                          )[$record][$randoEvent][$fieldName] );
 		}
 	}
-	$return['message'] = $module->getDescription( $return['data'][$randoField] );
+	$return['message'] =
+		$module->escapeHTML( $module->getDescription( $return['data'][$randoField] ) );
 }
 else
 {
 	// Randomization was unsuccessful. The unsuccessful status and the error message (message
 	// contained in $status variable) are output.
 	$return['status'] = false;
-	$return['message'] = $status;
+	$return['message'] = $module->escapeHTML( $status );
 }
 
 // Perform the data output.

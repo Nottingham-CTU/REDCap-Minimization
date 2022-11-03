@@ -162,18 +162,25 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 	}
 	echo "\n";
 	// Output the record ID, randomization allocation, randomization date and fake allocation.
-	echo '"', str_replace( '"', '""', $itemRando['record'] ), '"';
-	echo ',"', str_replace( '"', '""', $itemRando['field_rando'] ), '"';
+	echo '"';
+	$module->echoText( str_replace( '"', '""', $itemRando['record'] ) );
+	echo '","';
+	$module->echoText( str_replace( '"', '""', $itemRando['field_rando'] ) );
+	echo '"';
 	if ( $fieldDate != null )
 	{
-		echo ',"', str_replace( '"', '""', $itemRando['field_date'] ), '"';
+		echo ',"';
+		$module->echoText( str_replace( '"', '""', $itemRando['field_date'] ) );
+		echo '"';
 	}
 	if ( $fieldBogus != null )
 	{
-		echo ',"', str_replace( '"', '""', $itemRando['field_bogus'] ), '"';
+		echo ',"';
+		$module->echoText( str_replace( '"', '""', $itemRando['field_bogus'] ) );
+		echo '"';
 	}
 	// Output the randomization number, and whether stratification has been used.
-	echo ',', $randoDiag['num'];
+	echo ',', intval( $randoDiag['num'] );
 	echo ',', ( $randoDiag['stratify'] ? '1' : '0' );
 	// If stratification has been used, output the stratification field values and the total number
 	// of records previously randomized to the strata.
@@ -189,10 +196,13 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 			}
 			if ( isset( $randoDiag['strata_values'][$stratName] ) )
 			{
-				echo '"', str_replace( '"', '""', $randoDiag['strata_values'][$stratName] ), '"';
+				echo '"';
+				$module->echoText( str_replace( '"', '""',
+				                                $randoDiag['strata_values'][$stratName] ) );
+				echo '"';
 			}
 		}
-		echo ',', $randoDiag['strata_records'];
+		echo ',', intval( $randoDiag['strata_records'] );
 	}
 	// Output the minimization field values.
 	for ( $i = 0; $i < count( $minimEvents ); $i++ )
@@ -205,7 +215,9 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 		}
 		if ( isset( $randoDiag['minim_values'][$minimName] ) )
 		{
-			echo '"', str_replace( '"', '""', $randoDiag['minim_values'][$minimName] ), '"';
+			echo '"';
+			$module->echoText( str_replace( '"', '""', $randoDiag['minim_values'][$minimName] ) );
+			echo '"';
 		}
 	}
 	// Output the 1st, 2nd, ... most minimized allocation.
@@ -214,7 +226,9 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 		echo ',';
 		if ( isset( $randoDiag['minim_alloc'][$i] ) )
 		{
-			echo '"', str_replace( '"', '""', $randoDiag['minim_alloc'][$i] ), '"';
+			echo '"';
+			$module->echoText( str_replace( '"', '""', $randoDiag['minim_alloc'][$i] ) );
+			echo '"';
 		}
 	}
 	// Output the (final) minimization totals.
@@ -223,7 +237,7 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 		echo ',';
 		if ( isset( $randoDiag['minim_totals']['final'][$code] ) )
 		{
-			echo $randoDiag['minim_totals']['final'][$code];
+			echo intval( $randoDiag['minim_totals']['final'][$code] );
 		}
 	}
 	// Output the random minimization totals (used for tie break).
@@ -232,29 +246,32 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 		echo ',';
 		if ( isset( $randoDiag['minim_totals']['random'][$code] ) )
 		{
-			echo $randoDiag['minim_totals']['random'][$code];
+			echo intval( $randoDiag['minim_totals']['random'][$code] );
 		}
 	}
 	// Output whether initial random allocations are being used.
 	echo ',', ( $randoDiag['minim_random']['initial'] ? '1' : '0' );
-	echo ',', ( isset( $randoDiag['minim_random']['threshold'] )
-	               ? $randoDiag['minim_random']['threshold'] : '' );
+	echo ',';
+	$module->echoText( isset( $randoDiag['minim_random']['threshold'] )
+	                   ? $randoDiag['minim_random']['threshold'] : '' );
 	for ( $i = 0; $i < $numMinimCodes - 1; $i++ )
 	{
 		echo ',';
 		if ( isset( $randoDiag['minim_random']['values'][$i] ) )
 		{
-			echo $randoDiag['minim_random']['values'][$i];
+			$module->echoText( $randoDiag['minim_random']['values'][$i] );
 		}
 	}
-	echo ',"', str_replace( '"', '""', $randoDiag['minim_random']['details'] ), '"';
+	echo ',"';
+	$module->echoText( str_replace( '"', '""', $randoDiag['minim_random']['details'] ) );
+	echo '"';
 	// Output the base (pre ratio adjustment) minimization totals.
 	foreach ( $minimCodes as $code )
 	{
 		echo ',';
 		if ( isset( $randoDiag['minim_totals']['base'][$code] ) )
 		{
-			echo $randoDiag['minim_totals']['base'][$code];
+			echo intval( $randoDiag['minim_totals']['base'][$code] );
 		}
 	}
 	// Output the field minimization totals and the maximum difference between totals for a field.
@@ -285,7 +302,7 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 					$listMinimDiff[$minimName]['high'] =
 					        $randoDiag['minim_totals']['fields'][$code][$minimName];
 				}
-				echo $randoDiag['minim_totals']['fields'][$code][$minimName];
+				echo intval( $randoDiag['minim_totals']['fields'][$code][$minimName] );
 			}
 		}
 	}

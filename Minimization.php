@@ -74,15 +74,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	{
 		if ( isset( $_SESSION['module_minimization_message'] ) )
 		{
-			$errMsg = $this->tt('cannot_rando') . ":\n\n" .
-			          $_SESSION['module_minimization_message'];
+			$errMsg = $this->escapeHTML( $_SESSION['module_minimization_message'] );
 			$errMsg = str_replace( "\n", '\n', addslashes( $errMsg ) );
 			unset( $_SESSION['module_minimization_message'] );
 
 
 ?>
 <script type="text/javascript">
-  $(function () { alert('<?php echo $errMsg; ?>') })
+  $(function () {simpleDialog('<?php echo $errMsg; ?>','<?php echo $this->tt('cannot_rando'); ?>')})
 </script>
 <?php
 
@@ -159,10 +158,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
                 {
                   if ( result.status )
                   {
+                    var vH = $('<div>')
                     Object.keys(result.data).forEach( function( fieldName )
                     {
                       var vField = $( '[name=' + fieldName + ']' )
-                      var vData = result.data[fieldName]
+                      var vData = vH.html( result.data[fieldName] ).text()
                       if ( vField.hasClass( 'date_dmy' ) || vField.hasClass( 'datetime_dmy' ) ||
                            vField.hasClass( 'datetime_seconds_dmy' ) )
                       {
@@ -178,12 +178,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
                       }
                       vField[0].value = vData
                     } )
-                    vRandoDetails.innerText = result.message
+                    vRandoDetails.innerHTML = result.message
                     dataEntryFormValuesChanged = vOldFormChangedVal
                   }
                   else
                   {
-                    alert( '<?php echo $this->tt('cannot_rando'); ?>:\n\n' + result.message )
+                    simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
                   }
                 }
               } )
@@ -268,6 +268,23 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}
 		}
+	}
+
+
+
+	// Echo plain text to output (without Psalm taints).
+	// Use only for e.g. JSON or CSV output.
+	function echoText( $text )
+	{
+		echo array_reduce( [ $text ], function( $c, $i ) { return $c . $i; }, '' );
+	}
+
+
+
+	// Escapes text for inclusion in HTML.
+	function escapeHTML( $text )
+	{
+		return htmlspecialchars( $text, ENT_QUOTES );
 	}
 
 
