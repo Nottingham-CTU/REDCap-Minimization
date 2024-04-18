@@ -78,6 +78,12 @@
 			"type" : "field-list"
 		},
 		{
+			"key" : "rando-logic",
+			"name" : "Logic which must be satisfied to allow randomization",
+			"tt_name" : "setting_rando_logic",
+			"type" : "textarea"
+		},
+		{
 			"key" : "space1",
 			"name" : "",
 			"type" : "descriptive"

@@ -351,6 +351,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 
 
+		// Check that the logic (if specified) is satisfied for this record.
+		$randoLogic = $this->getProjectSetting( 'rando-logic' );
+		if ( $randoLogic != '' && ! \REDCap::evaluateLogic( $randoLogic, $this->getProjectId(),
+		                                                    $newRecordID, $randoEvent ) )
+		{
+			return $this->logRandoFailure( $this->tt('rando_msg_logic'), $newRecordID );
+		}
+
+
 		// Get all the records for the project.
 		$listRecords = \REDCap::getData( [ 'return_format' => 'array',
 		                                   'combine_checkbox_values' => true,

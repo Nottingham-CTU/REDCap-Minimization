@@ -63,6 +63,10 @@ This field stores information that can be useful for verifying or debugging your
 configuration. It is unlikely to be useful (and may be confusing) to site researchers, so the
 @HIDDEN action tag should be used to hide the field. A notes box field type should be used for this.
 
+### Logic which must be satisfied to allow randomization
+If specified, this logic will be tested and randomization will only proceed if the logic evaluates
+to true. If not specified, randomization will always be allowed when possible.
+
 ### Stratification variables
 The stratification variables split the records into stratas, where the *strata* is the set of
 records for which all the stratification variables have the same values as on the record being
