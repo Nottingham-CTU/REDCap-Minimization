@@ -21,9 +21,11 @@ if ( $module->getProjectSetting( 'rando-field' ) == null ||
 }
 
 // Set variables.
+$projectID = intval( $module->getProjectId() );
+$dataTable = method_exists( '\REDCap', 'getDataTable' )
+             ? \REDCap::getDataTable( $projectID ) : 'redcap_data';
 $showEventNames = ( $module->getProjectSetting( 'diag-download' ) != 'O' );
 $listEventNames = REDCap::getEventNames( true );
-$projectID = intval( $module->getProjectId() );
 $eventID = intval( $module->getProjectSetting( 'rando-event' ) );
 $fieldRando = $module->getProjectSetting( 'rando-field' );
 $fieldDate = $module->getProjectSetting( 'rando-date-field' );
@@ -45,25 +47,25 @@ foreach ( $minimCodes as $code )
 // Construct SQL query to get randomization values and diagnostics.
 $sqlRando = "SELECT record, field_rando" .
             ( $fieldDate == null ? '' : ', field_date' ) .
-            ( $fieldDate == null ? '' : ', field_bogus' ) .
+            ( $fieldBogus == null ? '' : ', field_bogus' ) .
             ', field_diag ' .
-            "FROM ( SELECT record, value AS field_rando FROM redcap_data " .
+            "FROM ( SELECT record, value AS field_rando FROM $dataTable " .
             "WHERE project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl1 ";
 
 $fieldNames = [ $fieldRando ];
 if ( $fieldDate != null )
 {
-	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_date FROM redcap_data WHERE " .
+	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_date FROM $dataTable WHERE " .
 	             "project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl2 ";
 	$fieldNames[] = $fieldDate;
 }
 if ( $fieldBogus != null )
 {
-	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_bogus FROM redcap_data WHERE " .
+	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_bogus FROM $dataTable WHERE " .
 	             "project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl3 ";
 	$fieldNames[] = $fieldBogus;
 }
-$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_diag FROM redcap_data " .
+$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_diag FROM $dataTable " .
              "WHERE project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl4";
 $fieldNames[] = $fieldDiag;
 
