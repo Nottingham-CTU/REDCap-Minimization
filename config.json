@@ -342,6 +342,13 @@
 					"tt_name" : "option_diag_download_o"
 				}
 			]
+		},
+		{
+			"key" : "testrun-status",
+			"name" : "Test run status",
+			"type" : "textarea",
+			"hidden" : true,
+			"super-users-only" : true
 		}
 	]
 }
