@@ -2,8 +2,12 @@
 
 namespace Nottingham\Minimization;
 
-// Only allow administrators to access this page.
-if ( ! $module->getUser()->isSuperUser() )
+// Exit here if not project designer.
+if ( $module->getProjectSetting( 'diag-field' ) == null ||
+     ( $module->getSystemSetting( 'config-require-user-permission' ) == 'true' &&
+       ! in_array( 'minimization',
+                   $module->getUser()->getRights()['external_module_config'] ) ) ||
+     ! $module->getUser()->hasDesignRights() )
 {
 	exit;
 }
@@ -19,9 +23,25 @@ function getDiagnosticOutput()
 }
 
 
+// Get the randomization fields.
+$listFieldNames = \REDCap::getFieldNames();
+$randoEvent = $module->getProjectSetting( 'rando-event' );
+$randoField = $module->getProjectSetting( 'rando-field' );
+$bogusField = $module->getProjectSetting( 'bogus-field' );
+if ( ! in_array( $bogusField, $listFieldNames ) )
+{
+	$bogusField = null;
+}
+$diagField = $module->getProjectSetting( 'diag-field' );
+if ( ! in_array( $diagField, $listFieldNames ) )
+{
+	$diagField = null;
+}
+
+
 // Get the project status.
 $isDev = $module->getProjectStatus() == 'DEV';
-$canTestRun = ( $module->getProjectSetting( 'diag-field' ) != '' );
+$canTestRun = ( $diagField != '' );
 
 
 // Get the test run status.
@@ -37,6 +57,25 @@ else
 	{
 		$testRunStatus = false;
 	}
+}
+
+
+// If returning the test run status only.
+if ( isset( $_GET['testrunstatus'] ) )
+{
+	header( 'Content-Type: application/json' );
+	if ( $testRunStatus === false )
+	{
+		echo 'false';
+	}
+	else
+	{
+		echo json_encode( $module->tt( 'testrun_progress', $testRunStatus['current_run'],
+		                               $testRunStatus['total_runs'],
+		                               $testRunStatus['current_record'],
+		                               $testRunStatus['total_records'] ) );
+	}
+	exit;
 }
 
 
@@ -184,11 +223,7 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 	}
 }
 
-// Get the randomization fields.
-$randoEvent = $module->getProjectSetting( 'rando-event' );
-$randoField = $module->getProjectSetting( 'rando-field' );
-$bogusField = $module->getProjectSetting( 'bogus-field' );
-$diagField = $module->getProjectSetting( 'diag-field' );
+// Get the records.
 $listRecords = \REDCap::getData( 'array' );
 
 // Display the project header
@@ -230,6 +265,7 @@ if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0',
 {
 ?>
 
+<p>&nbsp;</p>
 <form method="post" id="rando-runs-frm">
  <table class="dataTable cell-border no-footer">
   <thead>
@@ -273,7 +309,7 @@ if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0',
         <select name="testrun_field[]">
          <option value="">- <?php echo $module->tt('setting_field'); ?> -</option>
 <?php
-		foreach ( \REDCap::getFieldNames() as $fieldName )
+		foreach ( $listFieldNames as $fieldName )
 		{
 ?>
          <option value="<?php echo $module->escapeHTML( $fieldName ); ?>">
@@ -338,14 +374,16 @@ if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0',
    <tr>
     <td>
      <i class="fas fa-list-check"></i>
-     <?php echo $module->tt( 'testrun_progress', $testRunStatus['current_run'],
-                             $testRunStatus['total_runs'], $testRunStatus['current_record'],
-                             $testRunStatus['total_records'] ), "\n"; ?>
+     <span id="test-runs-progress">
+      <?php echo $module->tt( 'testrun_progress', $testRunStatus['current_run'],
+                              $testRunStatus['total_runs'], $testRunStatus['current_record'],
+                              $testRunStatus['total_records'] ), "\n"; ?>
+     </span>
      &nbsp;
-     <a href="<?php echo $module->getUrl( 'batch_rando.php' ); ?>">
-      <i class="fas fa-rotate-right"></i>
-     </a>
     </td>
+   </tr>
+   <tr>
+    <td><?php echo $module->tt('testrun_progress2'); ?></td>
    </tr>
 <?php
 	}
@@ -353,6 +391,8 @@ if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0',
   </tbody>
  </table>
 </form>
+<p>&nbsp;</p>
+<hr style="width:95%">
 <p>&nbsp;</p>
 
 <?php
@@ -517,9 +557,6 @@ if ( $testRunStatus === false )
   </button>
  </p>
 </form>
-<?php
-}
-?>
 <script type="text/javascript">
   function doBatchRando()
   {
@@ -571,7 +608,8 @@ if ( $testRunStatus === false )
   {
     var vForm = $('#rando-runs-frm')
     if ( $('[name="testrun_records"]').val() != '' && $('[name="testrun_runs"]').val() != '' &&
-         confirm( '<?php echo $module->tt('testrun_confirm'); ?>' ) )
+         confirm( '<?php echo $module->tt('testrun_warnmsg'); ?>\n\n' +
+                  '<?php echo $module->tt('testrun_confirm'); ?>' ) )
     {
       $('#test-runs-button').css('display', 'none')
       $.ajax( { url : '<?php echo $module->getUrl( 'batch_rando.php' ); ?>',
@@ -585,6 +623,31 @@ if ( $testRunStatus === false )
     }
   }
 </script>
+<?php
+}
+else
+{
+?>
+<script type="text/javascript">
+  setInterval( function ()
+  {
+    $.get( '<?php echo $module->getUrl( 'batch_rando.php' ); ?>&testrunstatus=1',
+           function( vData )
+           {
+             if ( vData === false )
+             {
+               window.location.href = '<?php echo $module->getUrl( 'batch_rando.php' ); ?>'
+             }
+             else
+             {
+               $('#test-runs-progress').text( vData )
+             }
+           }, 'json' )
+  }, 10000)
+</script>
+<?php
+}
+?>
 
 <?php
 

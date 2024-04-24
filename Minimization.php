@@ -9,9 +9,21 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
+		// Get the project's field names.
+		$listFieldNames = \REDCap::getFieldNames();
+		$randoField = $this->getProjectSetting( 'rando-field' );
+		$diagField = $this->getProjectSetting( 'diag-field' );
+
+		// Always hide the links if randomization event or field not specified.
+		if ( $this->getProjectSetting( 'rando-event' ) == null || $randoField == null ||
+		     ! in_array( $randoField, $listFieldNames ) )
+		{
+			return null;
+		}
+
 		// Always hide the diagnostic download link if diagnostics are not being saved.
 		if ( $link['tt_name'] == 'module_link_diag' &&
-		     $this->getProjectSetting( 'diag-field' ) == null )
+		     ( $diagField == null || ! in_array( $diagField, $listFieldNames ) ) )
 		{
 			return null;
 		}
