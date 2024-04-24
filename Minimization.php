@@ -20,12 +20,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' )
 		{
 			return in_array( 'minimization',
-			                 $this->framework->getUser()->getRights()['external_module_config'] )
+			                 $this->getUser()->getRights()['external_module_config'] )
 			       ? $link : null;
 		}
 
 		// Otherwise show link based on project setup/design rights.
-		return $this->framework->getUser()->hasDesignRights() ? $link : null;
+		return $this->getUser()->hasDesignRights() ? $link : null;
 	}
 
 

@@ -1,5 +1,6 @@
 <?php
 
+namespace Nottingham\Minimization;
 
 $isDev = $module->query( "SELECT value FROM redcap_config" .
                          " WHERE field_name = 'is_development_server'" )->fetch_row()[0] == '1';
@@ -25,7 +26,7 @@ $projectID = intval( $module->getProjectId() );
 $dataTable = method_exists( '\REDCap', 'getDataTable' )
              ? \REDCap::getDataTable( $projectID ) : 'redcap_data';
 $showEventNames = ( $module->getProjectSetting( 'diag-download' ) != 'O' );
-$listEventNames = REDCap::getEventNames( true );
+$listEventNames = \REDCap::getEventNames( true );
 $eventID = intval( $module->getProjectSetting( 'rando-event' ) );
 $fieldRando = $module->getProjectSetting( 'rando-field' );
 $fieldDate = $module->getProjectSetting( 'rando-date-field' );
@@ -70,7 +71,7 @@ $sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_diag FROM $dataT
 $fieldNames[] = $fieldDiag;
 
 $queryRando = $module->query( $sqlRando, $fieldNames );
-array_unshift( $fieldNames, $module->framework->getRecordIdField() );
+array_unshift( $fieldNames, $module->getRecordIdField() );
 array_pop( $fieldNames );
 
 // Output CSV headers.

@@ -1,7 +1,9 @@
 <?php
 
+namespace Nottingham\Minimization;
+
 // Only allow administrators to access this page.
-if ( ! $module->framework->getUser()->isSuperUser() )
+if ( ! $module->getUser()->isSuperUser() )
 {
 	exit;
 }
@@ -29,7 +31,7 @@ $randoEvent = $module->getProjectSetting( 'rando-event' );
 $randoField = $module->getProjectSetting( 'rando-field' );
 $bogusField = $module->getProjectSetting( 'bogus-field' );
 $diagField = $module->getProjectSetting( 'diag-field' );
-$listRecords = REDCap::getData( 'array' );
+$listRecords = \REDCap::getData( 'array' );
 
 // Display the project header
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';

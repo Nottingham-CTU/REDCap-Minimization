@@ -1,5 +1,7 @@
 <?php
 
+namespace Nottingham\Minimization;
+
 // This script responds to AJAX requests triggered when the randomize button is clicked.
 // Output is in JSON format.
 header( 'Content-Type: application/json' );
