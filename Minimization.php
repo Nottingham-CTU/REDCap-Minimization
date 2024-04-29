@@ -769,6 +769,35 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 
+		// If the pack management module is enabled, and a minimization pack category is enabled,
+		// request a pack for the chosen allocation.
+		$packField = '';
+		if ( $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
+		{
+			$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
+			if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) &&
+			     $packMgmt->hasMinimPackCategory() &&
+			     method_exists( $packMgmt, 'getMinimPackField' ) &&
+			     method_exists( $packMgmt, 'assignMinimPack' ) )
+			{
+				// Get the field name for the allocation pack ID.
+				$packField = $packMgmt->getMinimPackField();
+				// Re-obtain the codes from the list of adjusted minimization totals, and prepend
+				// the selected randomization code.
+				$listAdjustedCodes = array_keys( $listAdjustedTotals );
+				array_unshift( $listAdjustedCodes, $randoCode );
+				// Get the allocation pack details.
+				$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
+				// If false returned, a pack could not be assigned.
+				if ( $infoPack === false )
+				{
+					return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ), $newRecordID );
+				}
+				$packID = $infoPack['packID'];
+				$randoCode = $infoPack['randoCode'];
+			}
+		}
+
 		// Determine the date/time if required.
 		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		if ( $dateField != '' )
@@ -897,6 +926,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			$inputData[$newRecordID][$randoEvent][$diagField] = $diagData;
 		}
+		if ( $packField != '' )
+		{
+			$inputData[$newRecordID][$randoEvent][$packField] = $packID;
+		}
 		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
 		if ( count( $result['errors'] ) > 0 )
 		{
@@ -907,7 +940,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                   ( $randoField .
 		                     ( $dateField == '' ? '' : "\n$dateField" ) .
 		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
-		                     ( $diagField == '' ? '' : "\n$diagField" ) ),
+		                     ( $diagField == '' ? '' : "\n$diagField" ) ) .
+		                     ( $packField == '' ? '' : "\n$packField" ) ),
 		                   null, $newRecordID, $randoEvent );
 		return true;
 	}
