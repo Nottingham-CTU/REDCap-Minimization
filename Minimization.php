@@ -69,14 +69,40 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( $dateField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$dateField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$dateField]['misc'] =
+					'@READONLY ' . $GLOBALS['Proj']->metadata[$dateField]['misc'];
 		}
 		if ( $bogusField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$bogusField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$bogusField]['misc'] =
+					'@READONLY ' . $GLOBALS['Proj']->metadata[$bogusField]['misc'];
 		}
 		if ( $diagField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$diagField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$diagField]['misc'] =
+					'@READONLY ' . $GLOBALS['Proj']->metadata[$diagField]['misc'];
+		}
+		// If randomizaton allocation value protection is enabled, ensure that the randomization
+		// and diagnostics fields are not displayed on the form at all once the randomization
+		// field has a value.
+		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 10 ) == 'DataEntry/' &&
+		     $this->getProjectSetting( 'rando-protect-value' ) && isset( $_GET['id'] ) &&
+		     isset( $_GET['page'] ) && $_GET['page'] != '' )
+		{
+			$protectedData = \REDCap::getData( 'array', $_GET['id'], $randoField, $randoEvent );
+			if ( $protectedData[ $_GET['id'] ][ $randoEvent ][ $randoField ] != '' )
+			{
+				if ( isset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $randoField ] ) )
+				{
+					unset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $randoField ] );
+				}
+				if ( isset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $diagField ] ) )
+				{
+					unset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $diagField ] );
+				}
+			}
 		}
 	}
 
@@ -1087,7 +1113,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
 		                     ( $diagField == '' ? '' : "\n$diagField" ) .
 		                     ( $packField == '' ? '' : "\n$packField" ) ),
-		                   null, $newRecordID, $randoEvent );
+		                   null, $newRecordID, $randoEvent, $this->getProjectId() );
 		return true;
 	}
 
@@ -1097,7 +1123,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	// in the randomization function following logging.
 	function logRandoFailure( $description, $recordID )
 	{
-		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID );
+		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID,
+		                   null, $this->getProjectId() );
 		return $description;
 	}
 

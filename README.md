@@ -136,6 +136,14 @@ one of the initial records allocated randomly.
 * **Use custom strata** will apply the per-strata approach, but with a secondary strata defined
   exclusively for this purpose
 
+### Protect randomization allocation values
+If selected, users are unable to view the randomization allocation on the data entry form after
+the randomization has been performed. This limitation is applied server-side.
+
+* To allow users to see the allocation temporarily, ensure that *automatically randomize on
+  submission of form* is **not** selected. The allocation will be visible from when the randomize
+  button is clicked until the user navigates away from the form.
+
 ### Diagnostic download mode
 Select whether headings in the CSV download are standard (includes event/arm prefixes on fields), or
 always omit event/arm prefixes. This only affects longitudinal projects.

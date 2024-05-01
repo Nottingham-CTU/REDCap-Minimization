@@ -326,6 +326,17 @@
 			"type" : "descriptive"
 		},
 		{
+			"key" : "rando-protect-value",
+			"name" : "Protect randomization allocation values",
+			"tt_name" : "setting_rando_protect_value",
+			"type" : "checkbox"
+		},
+		{
+			"key" : "space8",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
 			"key" : "diag-download",
 			"name" : "Diagnostic download mode",
 			"tt_name" : "setting_diag_download",
