@@ -350,5 +350,14 @@
 			"hidden" : true,
 			"super-users-only" : true
 		}
+	],
+	"crons" : [
+		{
+			"cron_name" : "do_test_runs",
+			"cron_description" : "Cron to perform the minimization test runs.",
+			"method" : "doTestRuns",
+			"cron_frequency" : "60",
+			"cron_max_run_time" : "3600"
+		}
 	]
 }

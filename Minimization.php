@@ -5,6 +5,8 @@ namespace Nottingham\Minimization;
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
 
+	static $listTREvents = null;
+
 	// Determine whether the module links should be displayed, based on user type/role.
 	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
@@ -284,6 +286,131 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Cron job to perform test runs.
+	function doTestRuns( $infoCron )
+	{
+		$startTime = time();
+		$queryTestRuns =
+			$this->query( "SELECT project_id, ems.value FROM redcap_external_module_settings ems " .
+			              "JOIN redcap_external_modules em ON ems.external_module_id = " .
+			              "em.external_module_id WHERE em.directory_prefix = 'minimization' AND " .
+			              "ems.key = 'testrun-status' AND ems.value->>'$.timestamp' > ? " .
+			              "ORDER BY ems.value->>'$.timestamp' LIMIT 1", [ $startTime - 1800 ] );
+		$infoTestRuns = $queryTestRuns->fetch_assoc();
+		if ( $infoTestRuns == null )
+		{
+			return;
+		}
+		$oldContext = $_GET['pid'];
+		$_GET['pid'] = $infoTestRuns['project_id'];
+		$testRunStatus = json_decode( $infoTestRuns['value'], true );
+		$listDataFields = $testRunStatus['testdata'];
+		self::$listTREvents = $testRunStatus['events'];
+		$funcGetDiagOutput = function( $module, $listEventNames )
+		{
+			$forTestRuns = true;
+			ob_start();
+			require 'diag_download.php';
+			return ob_get_clean();
+		};
+		$dataHeadings = 'record,field_name,value';
+		if ( $testRunStatus['longitudinal'] )
+		{
+			$dataHeadings .= ',redcap_event_name';
+		}
+		// Do the test runs.
+		for ( $testRun = $testRunStatus['current_run'];
+		      $testRun <= $testRunStatus['total_runs']; $testRun++ )
+		{
+			// Update test run status.
+			$testRunStatus['timestamp'] = time();
+			$testRunStatus['current_run'] = $testRun;
+			$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+			if ( $testRunStatus['current_record'] == 0 )
+			{
+				// Delete any existing records.
+				$this->query( 'DELETE FROM ' . $testRunStatus['datatable'] .
+				              ' WHERE project_id = ?', [ $this->getProjectId() ] );
+				\Records::resetRecordCountAndListCache( $this->getProjectId() );
+				// Create the new records.
+				for ( $testRecord = 1;
+				      $testRecord <= $testRunStatus['total_records']; $testRecord++ )
+				{
+					$newData = $dataHeadings;
+					foreach ( $listDataFields as $infoDataField )
+					{
+						$newData .= "\n$testRecord," . $infoDataField['field'] . ',';
+						$v = random_int( 0, count( $infoDataField['values'] ) - 1 );
+						$v = $infoDataField['values'][ $v ];
+						$newData .= str_replace( '"', '""', $v );
+						if ( isset( $infoDataField['event'] ) )
+						{
+							$newData .= ',' . $infoDataField['event'];
+						}
+					}
+					$saveResponse = \REDCap::saveData( [ 'project_id' => $this->getProjectId(),
+					                                     'dataFormat' => 'csv',
+					                                     'type' => 'eav', 'data' => $newData ] );
+					if ( ! empty( $saveResponse['errors'] ) )
+					{
+						// Exit here if the data could not be saved due to errors.
+						break 2;
+					}
+				}
+				\Records::resetRecordCountAndListCache( $this->getProjectId() );
+				$testRunStatus['current_record'] = 1;
+			}
+			// Perform the randomizations.
+			for ( $testRecord = $testRunStatus['current_record'];
+			      $testRecord <= $testRunStatus['total_records']; $testRecord++ )
+			{
+				// Update test run status.
+				$testRunStatus['timestamp'] = time();
+				$testRunStatus['current_record'] = $testRecord;
+				$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+				// Perform randomization.
+				$randoResult = $this->performRando( $testRecord );
+				if ( $randoResult !== true )
+				{
+					// Exit here if a randomization could not be performed.
+					break 2;
+				}
+				if ( $testRecord == $testRunStatus['total_records'] )
+				{
+					// Get the diagnostic output and save to the file repository.
+					$diagOutput = $funcGetDiagOutput( $this, self::$listTREvents );
+					$diagFileName = $testRunStatus['filename'] . $this->tt('testrun_run') .
+					                substr( '0' . $testRun, -2 ) . '.csv';
+					file_put_contents( APP_PATH_TEMP . $diagFileName, $diagOutput );
+					$diagID = \REDCap::storeFile( APP_PATH_TEMP . $diagFileName,
+					                              $this->getProjectId() );
+					\REDCap::addFileToRepository( $diagID, $this->getProjectId() );
+					unlink( APP_PATH_TEMP . $diagFileName );
+					$testRunStatus['timestamp'] = time();
+					$testRunStatus['current_record'] = 0;
+					$testRunStatus['current_run']++;
+					$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+					$testRunStatus['current_run']--;
+				}
+				// Update test run status.
+				$testRunStatus['timestamp'] = time();
+				$testRunStatus['current_record'] = $testRecord + 1;
+				$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+				// Keep individual cron runs within approx 5 minutes.
+				if ( $startTime < time() - 300 )
+				{
+					$_GET['pid'] = $oldContext;
+					return;
+				}
+			}
+		}
+		// Clear the test run status and exit.
+		$this->removeProjectSetting( 'testrun-status' );
+		$_GET['pid'] = $oldContext;
+	}
+
+
+
 	// Echo plain text to output (without Psalm taints).
 	// Use only for e.g. JSON or CSV output.
 	function echoText( $text )
@@ -373,7 +500,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 		// Get all the records for the project.
-		$listRecords = \REDCap::getData( [ 'return_format' => 'array',
+		$listRecords = \REDCap::getData( [ 'project_id' => $this->getProjectId(),
+		                                   'return_format' => 'array',
 		                                   'combine_checkbox_values' => true,
 		                                   'exportDataAccessGroups' => true ] );
 
@@ -813,7 +941,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 			// Adjust the date/time value if a date or datetime (without seconds) field is used.
 			$dateFieldType =
-				\REDCap::getDataDictionary( 'array', false, $dateField
+				\REDCap::getDataDictionary( $this->getProjectId(), 'array', false, $dateField
 					)[$dateField]['text_validation_type_or_show_slider_number'];
 			if ( substr( $dateFieldType, 0, 4 ) == 'date' )
 			{
@@ -869,7 +997,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$diagData['minim_values'] = [];
 			foreach ( $listNewMinValues as $eventNum => $infoMinEvent )
 			{
-				$eventName = \REDCap::getEventNames( true, true, $eventNum );
+				if ( self::$listTREvents === null )
+				{
+					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+				}
+				else
+				{
+					$eventName = is_array( self::$listTREvents ) ? self::$listTREvents[ $eventNum ]
+					                                             : false;
+				}
 				if ( $eventName != '' )
 				{
 					$eventName .= '.';
@@ -886,7 +1022,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				foreach ( $infoMinField as $eventNum => $infoMinEvent )
 				{
-					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					if ( self::$listTREvents === null )
+					{
+						$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					}
+					else
+					{
+						$eventName = is_array( self::$listTREvents )
+						                ? self::$listTREvents[ $eventNum ] : false;
+					}
 					if ( $eventName != '' )
 					{
 						$eventName .= '.';
@@ -930,7 +1074,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			$inputData[$newRecordID][$randoEvent][$packField] = $packID;
 		}
-		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
+		$result = \REDCap::saveData( $this->getProjectId(), 'array', $inputData, 'normal',
+		                             'YMD', 'flat', null, false );
 		if ( count( $result['errors'] ) > 0 )
 		{
 			return $this->logRandoFailure( $this->tt('rando_save_error') . ":\n" .
@@ -940,7 +1085,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                   ( $randoField .
 		                     ( $dateField == '' ? '' : "\n$dateField" ) .
 		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
-		                     ( $diagField == '' ? '' : "\n$diagField" ) ) .
+		                     ( $diagField == '' ? '' : "\n$diagField" ) .
 		                     ( $packField == '' ? '' : "\n$packField" ) ),
 		                   null, $newRecordID, $randoEvent );
 		return true;

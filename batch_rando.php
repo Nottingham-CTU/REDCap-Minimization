@@ -13,16 +13,6 @@ if ( $module->getProjectSetting( 'diag-field' ) == null ||
 }
 
 
-function getDiagnosticOutput()
-{
-	global $module;
-	$forTestRuns = true;
-	ob_start();
-	require 'diag_download.php';
-	return ob_get_clean();
-}
-
-
 // Get the randomization fields.
 $listFieldNames = \REDCap::getFieldNames();
 $randoEvent = $module->getProjectSetting( 'rando-event' );
@@ -53,7 +43,7 @@ if ( $testRunStatus == '' )
 else
 {
 	$testRunStatus = json_decode( $testRunStatus, true );
-	if ( $testRunStatus['timestamp'] + 600 < time() )
+	if ( $testRunStatus['timestamp'] + 1800 < time() )
 	{
 		$testRunStatus = false;
 	}
@@ -105,15 +95,19 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 	     preg_match( '/^1?[0-9]$/', $_POST['testrun_runs'] ) )
 	{
 		ignore_user_abort( true );
-		\System::increaseMaxExecTime( 43200 );
+		\System::increaseMaxExecTime( 300 );
 		// Prepare the test run status.
-		$testRunStatus = [ 'timestamp' => time(), 'current_record' => 0,
-		                   'total_records' => intval( $_POST['testrun_records'] ),
-		                   'current_run' => 0, 'total_runs' => intval( $_POST['testrun_runs'] ) ];
-		$module->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
-		// Prepare the input parameters.
 		$dataTable = method_exists( '\REDCap', 'getDataTable' )
 		             ? \REDCap::getDataTable( $module->getProjectId() ) : 'redcap_data';
+		$fileName =
+				trim( preg_replace( '/[^A-Za-z0-9-]+/', '_', \REDCap::getProjectTitle() ), '_-' ) .
+				'_' . $module->tt('dldiag_title') . '_' . date( 'Ymd-Hi' ) . '_';
+		$testRunStatus = [ 'timestamp' => time(), 'current_record' => 0,
+		                   'total_records' => intval( $_POST['testrun_records'] ),
+		                   'current_run' => 1, 'total_runs' => intval( $_POST['testrun_runs'] ),
+		                   'longitudinal' => \REDCap::isLongitudinal(), 'datatable' => $dataTable,
+		                   'filename' => $fileName, 'testdata' => [], 'events' => false ];
+		// Prepare the input parameters.
 		$listDataFields = [];
 		for ( $i = 0; $i < count( $_POST['testrun_field'] ); $i++ )
 		{
@@ -144,15 +138,10 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 				$listDataFields[] = $infoDataField;
 			}
 		}
-		$dataHeadings = 'record,field_name,value';
-		if ( \REDCap::isLongitudinal() )
-		{
-			$dataHeadings .= ',redcap_event_name';
-		}
-		$fileName =
-				trim( preg_replace( '/[^A-Za-z0-9-]+/', '_', \REDCap::getProjectTitle() ), '_-' ) .
-				'_' . $module->tt('dldiag_title') . '_' . gmdate( 'Ymd-Hi' ) . '_';
 		// Save the test run parameters to the file repository.
+		$testRunStatus['testdata'] = $listDataFields;
+		$testRunStatus['events'] = \REDCap::getEventNames( true, true );
+		$module->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
 		$paramsData = json_encode( [ 'timestamp' => gmdate( 'Y-m-d H:i' ),
 		                             'testdata' => $listDataFields,
 		                             'records' => $testRunStatus['total_records'],
@@ -162,63 +151,6 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 		$paramsID = \REDCap::storeFile( APP_PATH_TEMP . $paramsFileName, $module->getProjectId() );
 		\REDCap::addFileToRepository( $paramsID, $module->getProjectId() );
 		unlink( APP_PATH_TEMP . $paramsFileName );
-		// Do the test runs.
-		for ( $testRun = 1; $testRun <= $_POST['testrun_runs']; $testRun++ )
-		{
-			// Update test run status.
-			$testRunStatus['timestamp'] = time();
-			$testRunStatus['current_record'] = 0;
-			$testRunStatus['current_run'] = $testRun;
-			$module->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
-			// Delete any existing records.
-			$module->query( 'DELETE FROM ' . $dataTable . ' WHERE project_id = ?',
-			                [ $module->getProjectId() ] );
-			\Records::clearRecordListCache();
-			// Create the new records.
-			for ( $testRecord = 1; $testRecord <= $_POST['testrun_records']; $testRecord++ )
-			{
-				$newData = $dataHeadings;
-				foreach ( $listDataFields as $infoDataField )
-				{
-					$newData .= "\n$testRecord," . $infoDataField['field'] . ',';
-					$v = random_int( 0, count( $infoDataField['values'] ) - 1 );
-					$v = $infoDataField['values'][ $v ];
-					$newData .= str_replace( '"', '""', $v );
-					if ( isset( $infoDataField['event'] ) )
-					{
-						$newData .= ',' . $infoDataField['event'];
-					}
-				}
-				$saveResponse = \REDCap::saveData( [ 'dataFormat' => 'csv',
-				                                     'type' => 'eav', 'data' => $newData ] );
-				if ( ! empty( $saveResponse['errors'] ) )
-				{
-					// Exit here if the data could not be saved due to errors.
-					exit;
-				}
-			}
-			\Records::clearRecordListCache();
-			// Perform the randomizations.
-			for ( $testRecord = 1; $testRecord <= $_POST['testrun_records']; $testRecord++ )
-			{
-				// Update test run status.
-				$testRunStatus['timestamp'] = time();
-				$testRunStatus['current_record'] = $testRecord;
-				$module->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
-				// Perform randomization.
-				$module->performRando( $testRecord );
-			}
-			// Get the diagnostic output and save to the file repository.
-			$diagOutput = getDiagnosticOutput();
-			$diagFileName = $fileName . $module->tt('testrun_run') .
-			                substr( '0' . $testRun, -2 ) . '.csv';
-			file_put_contents( APP_PATH_TEMP . $diagFileName, $diagOutput );
-			$diagID = \REDCap::storeFile( APP_PATH_TEMP . $diagFileName, $module->getProjectId() );
-			\REDCap::addFileToRepository( $diagID, $module->getProjectId() );
-			unlink( APP_PATH_TEMP . $diagFileName );
-		}
-		// Clear the test run status and exit.
-		$module->removeProjectSetting( 'testrun-status' );
 		exit;
 	}
 }

@@ -32,7 +32,10 @@ $projectID = intval( $module->getProjectId() );
 $dataTable = method_exists( '\REDCap', 'getDataTable' )
              ? \REDCap::getDataTable( $projectID ) : 'redcap_data';
 $showEventNames = ( $module->getProjectSetting( 'diag-download' ) != 'O' );
-$listEventNames = \REDCap::getEventNames( true );
+if ( ! isset( $listEventNames ) )
+{
+	$listEventNames = \REDCap::getEventNames( true );
+}
 $eventID = intval( $module->getProjectSetting( 'rando-event' ) );
 $fieldRando = $module->getProjectSetting( 'rando-field' );
 $fieldDate = $module->getProjectSetting( 'rando-date-field' );
