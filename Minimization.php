@@ -63,6 +63,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 		$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
+		$GLOBALS['Proj']->metadata[$randoField]['misc'] =
+				'@READONLY-SURVEY @READONLY-APP ' . $GLOBALS['Proj']->metadata[$randoField]['misc'];
 		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		$bogusField = $this->getProjectSetting( 'bogus-field' );
 		$diagField = $this->getProjectSetting( 'diag-field' );
@@ -340,9 +342,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		     // Check that the record is not already randomized (randomization field is blank).
 		     \REDCap::getData( 'array', $record, $randoField,
 		                       $randoEvent )[$record][$randoEvent][$randoField] == '' &&
-		     // Check that the submitted form is complete (<instrument_name>_complete == 2).
-		     \REDCap::getData( 'array', $record, $instrument . '_complete',
-		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' )
+		     // Check that the submitted form is complete (<instrument_name>_complete == 2), or
+		     // that randomizatons are to be performed regardless of form status.
+		     ( $this->getProjectSetting( 'rando-submit-any-status' ) ||
+		       \REDCap::getData( 'array', $record, $instrument . '_complete',
+		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' ) )
 		{
 			// Attempt randomization and get status (true if successful, otherwise error message).
 			$status = $this->performRando( $record );

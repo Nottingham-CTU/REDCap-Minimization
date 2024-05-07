@@ -103,8 +103,13 @@ the minimization variables (adjusted for ratio).
 ### Automatically randomize on submission of form
 Instead of presenting a *randomize* button in place of the randomization field which can be clicked
 to perform randomization, the randomization can be performed automatically when a form is submitted.
-The randomization will only be performed if the form status has been set to complete. It is possible
-to choose a form other than the one on which the randomization field appears.
+The randomization will only be performed if the form status has been set to complete (unless the
+*randomise regardless of selected form status* option is enabled). It is possible to choose a form
+other than the one on which the randomization field appears.
+
+#### Randomize regardless of selected form status
+If this option is enabled, the randomization will be performed automatically when the chosen form
+is submitted, even if the form status is set to incomplete or unverified.
 
 #### Reset form status to incomplete on randomization failure
 If this option is enabled, the submitted form triggering the randomization will have its status

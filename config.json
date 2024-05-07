@@ -222,6 +222,13 @@
 			"type" : "form-list"
 		},
 		{
+			"key" : "rando-submit-any-status",
+			"name" : "Randomize regardless of selected form status",
+			"tt_name" : "setting_rando_submit_any_status",
+			"type" : "checkbox",
+			"branchingLogic" : { "field" : "rando-submit-form", "op" : "<>", "value" : "" }
+		},
+		{
 			"key" : "rando-submit-status-reset",
 			"name" : "Reset form status to incomplete on randomization failure",
 			"tt_name" : "setting_rando_submit_status_reset",
