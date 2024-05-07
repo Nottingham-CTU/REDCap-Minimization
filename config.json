@@ -337,6 +337,17 @@
 			"type" : "descriptive"
 		},
 		{
+			"key" : "rando-manual-roles",
+			"name" : "Roles which can perform manual randomizations",
+			"tt_name" : "setting_rando_manual_roles",
+			"type" : "textarea"
+		},
+		{
+			"key" : "space9",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
 			"key" : "diag-download",
 			"name" : "Diagnostic download mode",
 			"tt_name" : "setting_diag_download",

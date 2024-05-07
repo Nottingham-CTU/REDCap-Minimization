@@ -144,6 +144,11 @@ the randomization has been performed. This limitation is applied server-side.
   submission of form* is **not** selected. The allocation will be visible from when the randomize
   button is clicked until the user navigates away from the form.
 
+### Roles which can perform manual randomizations
+Specify the role names (one per line) which are allowed to perform manual randomizations. Manual
+randomizations bypass the minimization process and allow an allocation to be directly chosen. This
+may be useful to facilitate randomizations when the system is unavailable.
+
 ### Diagnostic download mode
 Select whether headings in the CSV download are standard (includes event/arm prefixes on fields), or
 always omit event/arm prefixes. This only affects longitudinal projects.

@@ -159,10 +159,42 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <script type="text/javascript">
   (function ()
   {
+    var vFuncResult = function( result )
+    {
+      if ( result.status )
+      {
+        var vH = $('<div>')
+        Object.keys(result.data).forEach( function( fieldName )
+        {
+          var vField = $( '[name=' + fieldName + ']' )
+          var vData = vH.html( result.data[fieldName] ).text()
+          if ( vField.hasClass( 'date_dmy' ) || vField.hasClass( 'datetime_dmy' ) ||
+               vField.hasClass( 'datetime_seconds_dmy' ) )
+          {
+            vData = vData.substring( 8, 10 ) + '-' + vData.substring( 5, 7 ) + '-' +
+                    vData.substring( 0, 4 ) + vData.substring( 10 )
+          }
+          else if ( vField.hasClass( 'date_mdy' ) || vField.hasClass( 'datetime_mdy' ) ||
+                    vField.hasClass( 'datetime_seconds_mdy' ) )
+          {
+            vData = vData.substring( 5, 7 ) + '-' + vData.substring( 8, 10 ) + '-' +
+                    vData.substring( 0, 4 ) + vData.substring( 10 )
+          }
+          vField[0].value = vData
+        } )
+        vRandoDetails.innerHTML = result.message
+        dataEntryFormValuesChanged = vOldFormChangedVal
+      }
+      else
+      {
+        simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
+      }
+    }
     $( 'tr[sq_id=<?php echo $randoField; ?>] [name=<?php
 			echo $randoField; ?>]' ).css( 'display', 'none' )
     $( 'tr[sq_id=<?php echo $randoField; ?>] .choicevert' ).css( 'display', 'none' )
     $( 'tr[sq_id=<?php echo $randoField; ?>] .resetLinkParent' ).css( 'display', 'none' )
+    var vOldFormChangedVal
     var vRandoDetails = document.createElement( 'div' )
 <?php
 
@@ -187,45 +219,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
       {
         return false
       }
-      var vOldFormChangedVal = dataEntryFormValuesChanged
+      vOldFormChangedVal = dataEntryFormValuesChanged
       $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
                 method : 'POST',
                 data : { record : '<?php echo addslashes( $record ); ?>',
                          token : $('[name=redcap_csrf_token]')[0].value },
                 headers : { 'X-RC-Min-Req' : '1' },
                 dataType : 'json',
-                success : function( result )
-                {
-                  if ( result.status )
-                  {
-                    var vH = $('<div>')
-                    Object.keys(result.data).forEach( function( fieldName )
-                    {
-                      var vField = $( '[name=' + fieldName + ']' )
-                      var vData = vH.html( result.data[fieldName] ).text()
-                      if ( vField.hasClass( 'date_dmy' ) || vField.hasClass( 'datetime_dmy' ) ||
-                           vField.hasClass( 'datetime_seconds_dmy' ) )
-                      {
-                        vData = vData.substring( 8, 10 ) + '-' + vData.substring( 5, 7 ) + '-' +
-                                vData.substring( 0, 4 ) + vData.substring( 10 )
-                      }
-                      else if ( vField.hasClass( 'date_mdy' ) ||
-                                vField.hasClass( 'datetime_mdy' ) ||
-                                vField.hasClass( 'datetime_seconds_mdy' ) )
-                      {
-                        vData = vData.substring( 5, 7 ) + '-' + vData.substring( 8, 10 ) + '-' +
-                                vData.substring( 0, 4 ) + vData.substring( 10 )
-                      }
-                      vField[0].value = vData
-                    } )
-                    vRandoDetails.innerHTML = result.message
-                    dataEntryFormValuesChanged = vOldFormChangedVal
-                  }
-                  else
-                  {
-                    simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
-                  }
-                }
+                success : vFuncResult
               } )
       return false
     }
@@ -246,6 +247,58 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <?php
 
 
+				}
+				// If the user can perform manual randomizations, show the option for this.
+				if ( $this->canManualRando() )
+				{
+?>
+    var vManualLink = $('<a href="#" onclick="event.preventDefault()"><?php
+					echo $this->tt('rando_form_manual');
+?></a>')
+    vManualLink.css('font-size','x-small').css('margin-top','5px').css('display','inline-block')
+    var vManualDialog = $('<div></div>')
+    vManualDialog.append('<p><?php echo $this->tt('rando_form_manual_choose'); ?></p>')
+    vManualDialog.append('<p><select><option></option><?php
+					foreach ( $this->getCodeList( $record ) as $c => $d )
+					{
+						echo '<option value="', $this->escapeHTML( $c ), '">',
+						     $this->escapeHTML( $d ), '</option>';
+					}
+?></select>')
+    vManualLink.click( function()
+    {
+      vManualDialog.dialog( {
+        buttons : [
+          {
+            text : '<?php echo $this->tt('rando'); ?>',
+            icon : 'ui-icon-shuffle',
+            click : function ()
+            {
+              var vChoice = $(this).find('select').val()
+              if ( vChoice != '' )
+              {
+                vOldFormChangedVal = dataEntryFormValuesChanged
+                $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
+                          method : 'POST',
+                          data : { record : '<?php echo addslashes( $record ); ?>',
+                                   manualcode : vChoice,
+                                   token : $('[name=redcap_csrf_token]')[0].value },
+                          headers : { 'X-RC-Min-Req' : '1' },
+                          dataType : 'json',
+                          success : vFuncResult
+                        } )
+              }
+              $(this).dialog('close')
+            }
+          }
+        ],
+        modal : true,
+        title : '<?php echo $this->tt('rando_form_manual'); ?>'
+      } )
+    } )
+    $('<br>').appendTo( vRandoDetails )
+    vManualLink.appendTo( vRandoDetails )
+<?php
 				}
 			}
 			else // randomization *has* been performed for record
@@ -308,6 +361,42 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}
 		}
+	}
+
+
+
+	// Check if the current user can do manual randomizations.
+	function canManualRando()
+	{
+		// If module specific rights enabled and the user has them.
+		if ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' )
+		{
+			if ( in_array( 'minimization',
+			               $this->getUser()->getRights()['external_module_config'] ) )
+			{
+				return true;
+			}
+		}
+		// If module specific rights disabled and the user has project setup/design rights
+		elseif ( $this->getUser()->hasDesignRights() )
+		{
+			return true;
+		}
+
+		// Otherwise check if the user has a permitted role.
+		$userRights = $this->getUser()->getRights();
+		$roleName = ( isset( $userRights ) && isset( $userRights['role_name'] ) &&
+		              $userRights['role_name'] != '' ? $userRights['role_name'] : null );
+		if ( $roleName !== null )
+		{
+			$listRoles = explode( "\n", str_replace( "\r\n", "\n",
+			                                   $this->getProjectSetting( 'rando-manual-roles' ) ) );
+			if ( in_array( $roleName, $listRoles ) )
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 
@@ -418,10 +507,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
 					$testRunStatus['current_run']--;
 				}
-				// Update test run status.
-				$testRunStatus['timestamp'] = time();
-				$testRunStatus['current_record'] = $testRecord + 1;
-				$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+				else
+				{
+					// Update test run status.
+					$testRunStatus['timestamp'] = time();
+					$testRunStatus['current_record'] = $testRecord + 1;
+					$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+				}
 				// Keep individual cron runs within approx 5 minutes.
 				if ( $startTime < time() - 300 )
 				{
@@ -450,6 +542,49 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	function escapeHTML( $text )
 	{
 		return htmlspecialchars( $text, ENT_QUOTES );
+	}
+
+
+
+	// Get the list of allowed randomization codes/descriptions for a record.
+	function getCodeList( $record )
+	{
+		// Select the minimization mode to use. If multiple minimization modes are not in use, then
+		// the appropriate mode is the first (and only) one.
+		$minMode = 0;
+		if ( $this->getProjectSetting( 'mode-variable' ) )
+		{
+			$modeEvent = $this->getProjectSetting( 'mode-event' );
+			$modeField = $this->getProjectSetting( 'mode-field' );
+			$modeValue = $infoNewRecord[$modeEvent][$modeField];
+			$minMode = -1;
+			$listModeValues = $this->getProjectSetting( 'minim-mode' );
+			for ( $i = 0; $i < count( $listModeValues ); $i++ )
+			{
+				if ( $listModeValues[$i] == $modeValue )
+				{
+					$minMode = $i;
+					break;
+				}
+			}
+		}
+		if ( $minMode < 0 )
+		{
+			return [];
+		}
+
+
+		// Get the randomization codes and descriptions.
+		$listAllRandoCodes = $this->getProjectSetting( 'rando-code' );
+		$listRandoCodes = $listAllRandoCodes[$minMode];
+		$listAllRandoDescs = $this->getProjectSetting( 'rando-desc' );
+		$listRandoDescs = $listAllRandoDescs[$minMode];
+		$listCodeDescriptions = [];
+		for ( $i = 0; $i < count( $listRandoCodes ); $i++ )
+		{
+			$listCodeDescriptions[ $listRandoCodes[$i] ] = $listRandoDescs[$i];
+		}
+		return $listCodeDescriptions;
 	}
 
 
@@ -503,7 +638,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
-	function performRando( $newRecordID )
+	function performRando( $newRecordID, $manualCode = false )
 	{
 		// Check that the randomization event/field is defined.
 		$randoEvent = $this->getProjectSetting( 'rando-event' );
@@ -857,7 +992,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$listRandoProportional =
 					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
 		}
-		if ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
+		if ( $manualCode !== false )
+		{
+			// Do the manual randomization if requested.
+			$randoCode = $manualCode;
+			$randomApplied['details'] = $this->tt( 'diag_manual' );
+		}
+		elseif ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
 		{
 			// Always allocate randomly for the specified number of initial records.
 			$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
