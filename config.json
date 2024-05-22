@@ -17,8 +17,8 @@
 		"redcap_data_entry_form",
 		"redcap_save_record"
 	],
-	"framework-version" : 3,
-	"compatibility" : { "redcap-version-min" : "9.6.5" },
+	"framework-version" : 6,
+	"compatibility" : { "redcap-version-min" : "10.6.0" },
 	"links" : {
 		"project" : [
 			{
@@ -76,6 +76,12 @@
 			"name" : "Field to store diagnostic output for the randomization<br>(optional)",
 			"tt_name" : "setting_rando_diag_field",
 			"type" : "field-list"
+		},
+		{
+			"key" : "rando-logic",
+			"name" : "Logic which must be satisfied to allow randomization",
+			"tt_name" : "setting_rando_logic",
+			"type" : "textarea"
 		},
 		{
 			"key" : "space1",
@@ -216,6 +222,13 @@
 			"type" : "form-list"
 		},
 		{
+			"key" : "rando-submit-any-status",
+			"name" : "Randomize regardless of selected form status",
+			"tt_name" : "setting_rando_submit_any_status",
+			"type" : "checkbox",
+			"branchingLogic" : { "field" : "rando-submit-form", "op" : "<>", "value" : "" }
+		},
+		{
 			"key" : "rando-submit-status-reset",
 			"name" : "Reset form status to incomplete on randomization failure",
 			"tt_name" : "setting_rando_submit_status_reset",
@@ -320,6 +333,28 @@
 			"type" : "descriptive"
 		},
 		{
+			"key" : "rando-protect-value",
+			"name" : "Protect randomization allocation values",
+			"tt_name" : "setting_rando_protect_value",
+			"type" : "checkbox"
+		},
+		{
+			"key" : "space8",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
+			"key" : "rando-manual-roles",
+			"name" : "Roles which can perform manual randomizations",
+			"tt_name" : "setting_rando_manual_roles",
+			"type" : "textarea"
+		},
+		{
+			"key" : "space9",
+			"name" : "",
+			"type" : "descriptive"
+		},
+		{
 			"key" : "diag-download",
 			"name" : "Diagnostic download mode",
 			"tt_name" : "setting_diag_download",
@@ -336,6 +371,22 @@
 					"tt_name" : "option_diag_download_o"
 				}
 			]
+		},
+		{
+			"key" : "testrun-status",
+			"name" : "Test run status",
+			"type" : "textarea",
+			"hidden" : true,
+			"super-users-only" : true
+		}
+	],
+	"crons" : [
+		{
+			"cron_name" : "do_test_runs",
+			"cron_description" : "Cron to perform the minimization test runs.",
+			"method" : "doTestRuns",
+			"cron_frequency" : "60",
+			"cron_max_run_time" : "3600"
 		}
 	]
 }

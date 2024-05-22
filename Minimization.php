@@ -5,13 +5,27 @@ namespace Nottingham\Minimization;
 class Minimization extends \ExternalModules\AbstractExternalModule
 {
 
+	static $listTREvents = null;
+
 	// Determine whether the module links should be displayed, based on user type/role.
 	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
 	{
+		// Get the project's field names.
+		$listFieldNames = \REDCap::getFieldNames();
+		$randoField = $this->getProjectSetting( 'rando-field' );
+		$diagField = $this->getProjectSetting( 'diag-field' );
+
+		// Always hide the links if randomization event or field not specified.
+		if ( $this->getProjectSetting( 'rando-event' ) == null || $randoField == null ||
+		     ! in_array( $randoField, $listFieldNames ) )
+		{
+			return null;
+		}
+
 		// Always hide the diagnostic download link if diagnostics are not being saved.
 		if ( $link['tt_name'] == 'module_link_diag' &&
-		     $this->getProjectSetting( 'diag-field' ) == null )
+		     ( $diagField == null || ! in_array( $diagField, $listFieldNames ) ) )
 		{
 			return null;
 		}
@@ -20,12 +34,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		if ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' )
 		{
 			return in_array( 'minimization',
-			                 $this->framework->getUser()->getRights()['external_module_config'] )
+			                 $this->getUser()->getRights()['external_module_config'] )
 			       ? $link : null;
 		}
 
 		// Otherwise show link based on project setup/design rights.
-		return $this->framework->getUser()->hasDesignRights() ? $link : null;
+		return $this->getUser()->hasDesignRights() ? $link : null;
 	}
 
 
@@ -49,20 +63,48 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return;
 		}
 		$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
+		$GLOBALS['Proj']->metadata[$randoField]['misc'] =
+				'@READONLY-SURVEY @READONLY-APP ' . $GLOBALS['Proj']->metadata[$randoField]['misc'];
 		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		$bogusField = $this->getProjectSetting( 'bogus-field' );
 		$diagField = $this->getProjectSetting( 'diag-field' );
 		if ( $dateField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$dateField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$dateField]['misc'] =
+					'@READONLY ' . $GLOBALS['Proj']->metadata[$dateField]['misc'];
 		}
 		if ( $bogusField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$bogusField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$bogusField]['misc'] =
+					'@READONLY ' . $GLOBALS['Proj']->metadata[$bogusField]['misc'];
 		}
 		if ( $diagField != '' )
 		{
 			$GLOBALS['Proj']->metadata[$diagField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$diagField]['misc'] =
+					'@READONLY ' . $GLOBALS['Proj']->metadata[$diagField]['misc'];
+		}
+		// If randomizaton allocation value protection is enabled, ensure that the randomization
+		// and diagnostics fields are not displayed on the form at all once the randomization
+		// field has a value.
+		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 10 ) == 'DataEntry/' &&
+		     $this->getProjectSetting( 'rando-protect-value' ) && isset( $_GET['id'] ) &&
+		     isset( $_GET['page'] ) && $_GET['page'] != '' )
+		{
+			$protectedData = \REDCap::getData( 'array', $_GET['id'], $randoField, $randoEvent );
+			if ( $protectedData[ $_GET['id'] ][ $randoEvent ][ $randoField ] != '' )
+			{
+				if ( isset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $randoField ] ) )
+				{
+					unset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $randoField ] );
+				}
+				if ( isset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $diagField ] ) )
+				{
+					unset( $GLOBALS['Proj']->forms[ $_GET['page'] ]['fields'][ $diagField ] );
+				}
+			}
 		}
 	}
 
@@ -119,10 +161,42 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <script type="text/javascript">
   (function ()
   {
+    var vFuncResult = function( result )
+    {
+      if ( result.status )
+      {
+        var vH = $('<div>')
+        Object.keys(result.data).forEach( function( fieldName )
+        {
+          var vField = $( '[name=' + fieldName + ']' )
+          var vData = vH.html( result.data[fieldName] ).text()
+          if ( vField.hasClass( 'date_dmy' ) || vField.hasClass( 'datetime_dmy' ) ||
+               vField.hasClass( 'datetime_seconds_dmy' ) )
+          {
+            vData = vData.substring( 8, 10 ) + '-' + vData.substring( 5, 7 ) + '-' +
+                    vData.substring( 0, 4 ) + vData.substring( 10 )
+          }
+          else if ( vField.hasClass( 'date_mdy' ) || vField.hasClass( 'datetime_mdy' ) ||
+                    vField.hasClass( 'datetime_seconds_mdy' ) )
+          {
+            vData = vData.substring( 5, 7 ) + '-' + vData.substring( 8, 10 ) + '-' +
+                    vData.substring( 0, 4 ) + vData.substring( 10 )
+          }
+          vField[0].value = vData
+        } )
+        vRandoDetails.innerHTML = result.message
+        dataEntryFormValuesChanged = vOldFormChangedVal
+      }
+      else
+      {
+        simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
+      }
+    }
     $( 'tr[sq_id=<?php echo $randoField; ?>] [name=<?php
 			echo $randoField; ?>]' ).css( 'display', 'none' )
     $( 'tr[sq_id=<?php echo $randoField; ?>] .choicevert' ).css( 'display', 'none' )
     $( 'tr[sq_id=<?php echo $randoField; ?>] .resetLinkParent' ).css( 'display', 'none' )
+    var vOldFormChangedVal
     var vRandoDetails = document.createElement( 'div' )
 <?php
 
@@ -147,45 +221,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
       {
         return false
       }
-      var vOldFormChangedVal = dataEntryFormValuesChanged
+      vOldFormChangedVal = dataEntryFormValuesChanged
       $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
                 method : 'POST',
                 data : { record : '<?php echo addslashes( $record ); ?>',
                          token : $('[name=redcap_csrf_token]')[0].value },
                 headers : { 'X-RC-Min-Req' : '1' },
                 dataType : 'json',
-                success : function( result )
-                {
-                  if ( result.status )
-                  {
-                    var vH = $('<div>')
-                    Object.keys(result.data).forEach( function( fieldName )
-                    {
-                      var vField = $( '[name=' + fieldName + ']' )
-                      var vData = vH.html( result.data[fieldName] ).text()
-                      if ( vField.hasClass( 'date_dmy' ) || vField.hasClass( 'datetime_dmy' ) ||
-                           vField.hasClass( 'datetime_seconds_dmy' ) )
-                      {
-                        vData = vData.substring( 8, 10 ) + '-' + vData.substring( 5, 7 ) + '-' +
-                                vData.substring( 0, 4 ) + vData.substring( 10 )
-                      }
-                      else if ( vField.hasClass( 'date_mdy' ) ||
-                                vField.hasClass( 'datetime_mdy' ) ||
-                                vField.hasClass( 'datetime_seconds_mdy' ) )
-                      {
-                        vData = vData.substring( 5, 7 ) + '-' + vData.substring( 8, 10 ) + '-' +
-                                vData.substring( 0, 4 ) + vData.substring( 10 )
-                      }
-                      vField[0].value = vData
-                    } )
-                    vRandoDetails.innerHTML = result.message
-                    dataEntryFormValuesChanged = vOldFormChangedVal
-                  }
-                  else
-                  {
-                    simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
-                  }
-                }
+                success : vFuncResult
               } )
       return false
     }
@@ -206,6 +249,58 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <?php
 
 
+				}
+				// If the user can perform manual randomizations, show the option for this.
+				if ( $this->canManualRando() )
+				{
+?>
+    var vManualLink = $('<a href="#" onclick="event.preventDefault()"><?php
+					echo $this->tt('rando_form_manual');
+?></a>')
+    vManualLink.css('font-size','x-small').css('margin-top','5px').css('display','inline-block')
+    var vManualDialog = $('<div></div>')
+    vManualDialog.append('<p><?php echo $this->tt('rando_form_manual_choose'); ?></p>')
+    vManualDialog.append('<p><select><option></option><?php
+					foreach ( $this->getCodeList( $record ) as $c => $d )
+					{
+						echo '<option value="', $this->escapeHTML( $c ), '">',
+						     $this->escapeHTML( $d ), '</option>';
+					}
+?></select>')
+    vManualLink.click( function()
+    {
+      vManualDialog.dialog( {
+        buttons : [
+          {
+            text : '<?php echo $this->tt('rando'); ?>',
+            icon : 'ui-icon-shuffle',
+            click : function ()
+            {
+              var vChoice = $(this).find('select').val()
+              if ( vChoice != '' )
+              {
+                vOldFormChangedVal = dataEntryFormValuesChanged
+                $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
+                          method : 'POST',
+                          data : { record : '<?php echo addslashes( $record ); ?>',
+                                   manualcode : vChoice,
+                                   token : $('[name=redcap_csrf_token]')[0].value },
+                          headers : { 'X-RC-Min-Req' : '1' },
+                          dataType : 'json',
+                          success : vFuncResult
+                        } )
+              }
+              $(this).dialog('close')
+            }
+          }
+        ],
+        modal : true,
+        title : '<?php echo $this->tt('rando_form_manual'); ?>'
+      } )
+    } )
+    $('<br>').appendTo( vRandoDetails )
+    vManualLink.appendTo( vRandoDetails )
+<?php
 				}
 			}
 			else // randomization *has* been performed for record
@@ -247,9 +342,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		     // Check that the record is not already randomized (randomization field is blank).
 		     \REDCap::getData( 'array', $record, $randoField,
 		                       $randoEvent )[$record][$randoEvent][$randoField] == '' &&
-		     // Check that the submitted form is complete (<instrument_name>_complete == 2).
-		     \REDCap::getData( 'array', $record, $instrument . '_complete',
-		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' )
+		     // Check that the submitted form is complete (<instrument_name>_complete == 2), or
+		     // that randomizatons are to be performed regardless of form status.
+		     ( $this->getProjectSetting( 'rando-submit-any-status' ) ||
+		       \REDCap::getData( 'array', $record, $instrument . '_complete',
+		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' ) )
 		{
 			// Attempt randomization and get status (true if successful, otherwise error message).
 			$status = $this->performRando( $record );
@@ -272,6 +369,170 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Check if the current user can do manual randomizations.
+	function canManualRando()
+	{
+		// If module specific rights enabled and the user has them.
+		if ( $this->getSystemSetting( 'config-require-user-permission' ) == 'true' )
+		{
+			if ( in_array( 'minimization',
+			               $this->getUser()->getRights()['external_module_config'] ) )
+			{
+				return true;
+			}
+		}
+		// If module specific rights disabled and the user has project setup/design rights
+		elseif ( $this->getUser()->hasDesignRights() )
+		{
+			return true;
+		}
+
+		// Otherwise check if the user has a permitted role.
+		$userRights = $this->getUser()->getRights();
+		$roleName = ( isset( $userRights ) && isset( $userRights['role_name'] ) &&
+		              $userRights['role_name'] != '' ? $userRights['role_name'] : null );
+		if ( $roleName !== null )
+		{
+			$listRoles = explode( "\n", str_replace( "\r\n", "\n",
+			                                   $this->getProjectSetting( 'rando-manual-roles' ) ) );
+			if ( in_array( $roleName, $listRoles ) )
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+
+	// Cron job to perform test runs.
+	function doTestRuns( $infoCron )
+	{
+		$startTime = time();
+		$queryTestRuns =
+			$this->query( "SELECT project_id, ems.value FROM redcap_external_module_settings ems " .
+			              "JOIN redcap_external_modules em ON ems.external_module_id = " .
+			              "em.external_module_id WHERE em.directory_prefix = 'minimization' AND " .
+			              "ems.key = 'testrun-status' AND ems.value->>'$.timestamp' > ? " .
+			              "ORDER BY ems.value->>'$.timestamp' LIMIT 1", [ $startTime - 1800 ] );
+		$infoTestRuns = $queryTestRuns->fetch_assoc();
+		if ( $infoTestRuns == null )
+		{
+			return;
+		}
+		$oldContext = $_GET['pid'];
+		$_GET['pid'] = $infoTestRuns['project_id'];
+		$testRunStatus = json_decode( $infoTestRuns['value'], true );
+		$listDataFields = $testRunStatus['testdata'];
+		self::$listTREvents = $testRunStatus['events'];
+		$funcGetDiagOutput = function( $module, $listEventNames )
+		{
+			$forTestRuns = true;
+			ob_start();
+			require 'diag_download.php';
+			return ob_get_clean();
+		};
+		$dataHeadings = 'record,field_name,value';
+		if ( $testRunStatus['longitudinal'] )
+		{
+			$dataHeadings .= ',redcap_event_name';
+		}
+		// Do the test runs.
+		for ( $testRun = $testRunStatus['current_run'];
+		      $testRun <= $testRunStatus['total_runs']; $testRun++ )
+		{
+			// Update test run status.
+			$testRunStatus['timestamp'] = time();
+			$testRunStatus['current_run'] = $testRun;
+			$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+			if ( $testRunStatus['current_record'] == 0 )
+			{
+				// Delete any existing records.
+				$this->query( 'DELETE FROM ' . $testRunStatus['datatable'] .
+				              ' WHERE project_id = ?', [ $this->getProjectId() ] );
+				\Records::resetRecordCountAndListCache( $this->getProjectId() );
+				// Create the new records.
+				for ( $testRecord = 1;
+				      $testRecord <= $testRunStatus['total_records']; $testRecord++ )
+				{
+					$newData = $dataHeadings;
+					foreach ( $listDataFields as $infoDataField )
+					{
+						$newData .= "\n$testRecord," . $infoDataField['field'] . ',';
+						$v = random_int( 0, count( $infoDataField['values'] ) - 1 );
+						$v = $infoDataField['values'][ $v ];
+						$newData .= str_replace( '"', '""', $v );
+						if ( isset( $infoDataField['event'] ) )
+						{
+							$newData .= ',' . $infoDataField['event'];
+						}
+					}
+					$saveResponse = \REDCap::saveData( [ 'project_id' => $this->getProjectId(),
+					                                     'dataFormat' => 'csv',
+					                                     'type' => 'eav', 'data' => $newData ] );
+					if ( ! empty( $saveResponse['errors'] ) )
+					{
+						// Exit here if the data could not be saved due to errors.
+						break 2;
+					}
+				}
+				\Records::resetRecordCountAndListCache( $this->getProjectId() );
+				$testRunStatus['current_record'] = 1;
+			}
+			// Perform the randomizations.
+			for ( $testRecord = $testRunStatus['current_record'];
+			      $testRecord <= $testRunStatus['total_records']; $testRecord++ )
+			{
+				// Update test run status.
+				$testRunStatus['timestamp'] = time();
+				$testRunStatus['current_record'] = $testRecord;
+				$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+				// Perform randomization.
+				$randoResult = $this->performRando( $testRecord );
+				if ( $randoResult !== true )
+				{
+					// Exit here if a randomization could not be performed.
+					break 2;
+				}
+				if ( $testRecord == $testRunStatus['total_records'] )
+				{
+					// Get the diagnostic output and save to the file repository.
+					$diagOutput = $funcGetDiagOutput( $this, self::$listTREvents );
+					$diagFileName = $testRunStatus['filename'] . $this->tt('testrun_run') .
+					                substr( '0' . $testRun, -2 ) . '.csv';
+					file_put_contents( APP_PATH_TEMP . $diagFileName, $diagOutput );
+					$diagID = \REDCap::storeFile( APP_PATH_TEMP . $diagFileName,
+					                              $this->getProjectId() );
+					\REDCap::addFileToRepository( $diagID, $this->getProjectId() );
+					unlink( APP_PATH_TEMP . $diagFileName );
+					$testRunStatus['timestamp'] = time();
+					$testRunStatus['current_record'] = 0;
+					$testRunStatus['current_run']++;
+					$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+					$testRunStatus['current_run']--;
+				}
+				else
+				{
+					// Update test run status.
+					$testRunStatus['timestamp'] = time();
+					$testRunStatus['current_record'] = $testRecord + 1;
+					$this->setProjectSetting( 'testrun-status', json_encode( $testRunStatus ) );
+				}
+				// Keep individual cron runs within approx 5 minutes.
+				if ( $startTime < time() - 300 )
+				{
+					$_GET['pid'] = $oldContext;
+					return;
+				}
+			}
+		}
+		// Clear the test run status and exit.
+		$this->removeProjectSetting( 'testrun-status' );
+		$_GET['pid'] = $oldContext;
+	}
+
+
+
 	// Echo plain text to output (without Psalm taints).
 	// Use only for e.g. JSON or CSV output.
 	function echoText( $text )
@@ -285,6 +546,49 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	function escapeHTML( $text )
 	{
 		return htmlspecialchars( $text, ENT_QUOTES );
+	}
+
+
+
+	// Get the list of allowed randomization codes/descriptions for a record.
+	function getCodeList( $record )
+	{
+		// Select the minimization mode to use. If multiple minimization modes are not in use, then
+		// the appropriate mode is the first (and only) one.
+		$minMode = 0;
+		if ( $this->getProjectSetting( 'mode-variable' ) )
+		{
+			$modeEvent = $this->getProjectSetting( 'mode-event' );
+			$modeField = $this->getProjectSetting( 'mode-field' );
+			$modeValue = $infoNewRecord[$modeEvent][$modeField];
+			$minMode = -1;
+			$listModeValues = $this->getProjectSetting( 'minim-mode' );
+			for ( $i = 0; $i < count( $listModeValues ); $i++ )
+			{
+				if ( $listModeValues[$i] == $modeValue )
+				{
+					$minMode = $i;
+					break;
+				}
+			}
+		}
+		if ( $minMode < 0 )
+		{
+			return [];
+		}
+
+
+		// Get the randomization codes and descriptions.
+		$listAllRandoCodes = $this->getProjectSetting( 'rando-code' );
+		$listRandoCodes = $listAllRandoCodes[$minMode];
+		$listAllRandoDescs = $this->getProjectSetting( 'rando-desc' );
+		$listRandoDescs = $listAllRandoDescs[$minMode];
+		$listCodeDescriptions = [];
+		for ( $i = 0; $i < count( $listRandoCodes ); $i++ )
+		{
+			$listCodeDescriptions[ $listRandoCodes[$i] ] = $listRandoDescs[$i];
+		}
+		return $listCodeDescriptions;
 	}
 
 
@@ -338,7 +642,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
-	function performRando( $newRecordID )
+	function performRando( $newRecordID, $manualCode = false )
 	{
 		// Check that the randomization event/field is defined.
 		$randoEvent = $this->getProjectSetting( 'rando-event' );
@@ -351,8 +655,18 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 
 
+		// Check that the logic (if specified) is satisfied for this record.
+		$randoLogic = $this->getProjectSetting( 'rando-logic' );
+		if ( $randoLogic != '' && ! \REDCap::evaluateLogic( $randoLogic, $this->getProjectId(),
+		                                                    $newRecordID, $randoEvent ) )
+		{
+			return $this->logRandoFailure( $this->tt('rando_msg_logic'), $newRecordID );
+		}
+
+
 		// Get all the records for the project.
-		$listRecords = \REDCap::getData( [ 'return_format' => 'array',
+		$listRecords = \REDCap::getData( [ 'project_id' => $this->getProjectId(),
+		                                   'return_format' => 'array',
 		                                   'combine_checkbox_values' => true,
 		                                   'exportDataAccessGroups' => true ] );
 
@@ -682,7 +996,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$listRandoProportional =
 					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
 		}
-		if ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
+		if ( $manualCode !== false )
+		{
+			// Do the manual randomization if requested.
+			$randoCode = $manualCode;
+			$randomApplied['details'] = $this->tt( 'diag_manual' );
+		}
+		elseif ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
 		{
 			// Always allocate randomly for the specified number of initial records.
 			$randoValue = random_int( 0, count( $listRandoProportional ) - 1 );
@@ -748,6 +1068,35 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 
+		// If the pack management module is enabled, and a minimization pack category is enabled,
+		// request a pack for the chosen allocation.
+		$packField = '';
+		if ( $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
+		{
+			$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
+			if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) &&
+			     $packMgmt->hasMinimPackCategory() &&
+			     method_exists( $packMgmt, 'getMinimPackField' ) &&
+			     method_exists( $packMgmt, 'assignMinimPack' ) )
+			{
+				// Get the field name for the allocation pack ID.
+				$packField = $packMgmt->getMinimPackField();
+				// Re-obtain the codes from the list of adjusted minimization totals, and prepend
+				// the selected randomization code.
+				$listAdjustedCodes = array_keys( $listAdjustedTotals );
+				array_unshift( $listAdjustedCodes, $randoCode );
+				// Get the allocation pack details.
+				$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
+				// If false returned, a pack could not be assigned.
+				if ( $infoPack === false )
+				{
+					return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ), $newRecordID );
+				}
+				$packID = $infoPack['packID'];
+				$randoCode = $infoPack['randoCode'];
+			}
+		}
+
 		// Determine the date/time if required.
 		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		if ( $dateField != '' )
@@ -763,7 +1112,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 			// Adjust the date/time value if a date or datetime (without seconds) field is used.
 			$dateFieldType =
-				\REDCap::getDataDictionary( 'array', false, $dateField
+				\REDCap::getDataDictionary( $this->getProjectId(), 'array', false, $dateField
 					)[$dateField]['text_validation_type_or_show_slider_number'];
 			if ( substr( $dateFieldType, 0, 4 ) == 'date' )
 			{
@@ -819,7 +1168,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$diagData['minim_values'] = [];
 			foreach ( $listNewMinValues as $eventNum => $infoMinEvent )
 			{
-				$eventName = \REDCap::getEventNames( true, true, $eventNum );
+				if ( self::$listTREvents === null )
+				{
+					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+				}
+				else
+				{
+					$eventName = is_array( self::$listTREvents ) ? self::$listTREvents[ $eventNum ]
+					                                             : false;
+				}
 				if ( $eventName != '' )
 				{
 					$eventName .= '.';
@@ -836,7 +1193,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				foreach ( $infoMinField as $eventNum => $infoMinEvent )
 				{
-					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					if ( self::$listTREvents === null )
+					{
+						$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					}
+					else
+					{
+						$eventName = is_array( self::$listTREvents )
+						                ? self::$listTREvents[ $eventNum ] : false;
+					}
 					if ( $eventName != '' )
 					{
 						$eventName .= '.';
@@ -876,7 +1241,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			$inputData[$newRecordID][$randoEvent][$diagField] = $diagData;
 		}
-		$result = \REDCap::saveData( 'array', $inputData, 'normal', 'YMD', 'flat', null, false );
+		if ( $packField != '' )
+		{
+			$inputData[$newRecordID][$randoEvent][$packField] = $packID;
+		}
+		$result = \REDCap::saveData( $this->getProjectId(), 'array', $inputData, 'normal',
+		                             'YMD', 'flat', null, false );
 		if ( count( $result['errors'] ) > 0 )
 		{
 			return $this->logRandoFailure( $this->tt('rando_save_error') . ":\n" .
@@ -886,8 +1256,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                   ( $randoField .
 		                     ( $dateField == '' ? '' : "\n$dateField" ) .
 		                     ( $bogusField == '' ? '' : "\n$bogusField" ) .
-		                     ( $diagField == '' ? '' : "\n$diagField" ) ),
-		                   null, $newRecordID, $randoEvent );
+		                     ( $diagField == '' ? '' : "\n$diagField" ) .
+		                     ( $packField == '' ? '' : "\n$packField" ) ),
+		                   null, $newRecordID, $randoEvent, $this->getProjectId() );
 		return true;
 	}
 
@@ -897,7 +1268,8 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	// in the randomization function following logging.
 	function logRandoFailure( $description, $recordID )
 	{
-		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID );
+		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID,
+		                   null, $this->getProjectId() );
 		return $description;
 	}
 

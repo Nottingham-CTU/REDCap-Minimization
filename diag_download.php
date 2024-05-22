@@ -1,29 +1,41 @@
 <?php
 
+namespace Nottingham\Minimization;
 
-$isDev = $module->query( "SELECT value FROM redcap_config" .
-                         " WHERE field_name = 'is_development_server'" )->fetch_row()[0] == '1';
-header( 'Content-Type: text/csv; charset=utf-8' );
-header( 'Content-Disposition: attachment; filename="' .
-        trim( preg_replace( '/[^A-Za-z0-9-]+/', '_', \REDCap::getProjectTitle() ), '_-' ) .
-        '_' . $module->tt('dldiag_title') . '_' . gmdate( 'Ymd-His' ) .
-        ( $isDev ? ( '_' . $module->tt('dldiag_dev') ) : '' ) . '.csv"' );
+$forTestRuns = ( isset( $forTestRuns ) && $forTestRuns === true ) ? true : false;
 
-// Exit here if the requirements are not satisfied.
-if ( $module->getProjectSetting( 'rando-field' ) == null ||
-     $module->getProjectSetting( 'diag-field' ) == null ||
-     ( $module->getSystemSetting( 'config-require-user-permission' ) == 'true' &&
-       ! in_array( 'minimization',
-                   $module->framework->getUser()->getRights()['external_module_config'] ) ) ||
-     ! $module->framework->getUser()->hasDesignRights() )
+
+if ( ! $forTestRuns )
 {
-	exit;
+	$isDev = $module->query( "SELECT value FROM redcap_config WHERE" .
+	                         " field_name = 'is_development_server'", [] )->fetch_row()[0] == '1';
+	header( 'Content-Type: text/csv; charset=utf-8' );
+	header( 'Content-Disposition: attachment; filename="' .
+	        trim( preg_replace( '/[^A-Za-z0-9-]+/', '_', \REDCap::getProjectTitle() ), '_-' ) .
+	        '_' . $module->tt('dldiag_title') . '_' . gmdate( 'Ymd-His' ) .
+	        ( $isDev ? ( '_' . $module->tt('dldiag_dev') ) : '' ) . '.csv"' );
+
+	// Exit here if the requirements are not satisfied.
+	if ( $module->getProjectSetting( 'rando-field' ) == null ||
+	     $module->getProjectSetting( 'diag-field' ) == null ||
+	     ( $module->getSystemSetting( 'config-require-user-permission' ) == 'true' &&
+	       ! in_array( 'minimization',
+	                   $module->getUser()->getRights()['external_module_config'] ) ) ||
+	     ! $module->getUser()->hasDesignRights() )
+	{
+		exit;
+	}
 }
 
 // Set variables.
-$showEventNames = ( $module->getProjectSetting( 'diag-download' ) != 'O' );
-$listEventNames = REDCap::getEventNames( true );
 $projectID = intval( $module->getProjectId() );
+$dataTable = method_exists( '\REDCap', 'getDataTable' )
+             ? \REDCap::getDataTable( $projectID ) : 'redcap_data';
+$showEventNames = ( $module->getProjectSetting( 'diag-download' ) != 'O' );
+if ( ! isset( $listEventNames ) )
+{
+	$listEventNames = \REDCap::getEventNames( true );
+}
 $eventID = intval( $module->getProjectSetting( 'rando-event' ) );
 $fieldRando = $module->getProjectSetting( 'rando-field' );
 $fieldDate = $module->getProjectSetting( 'rando-date-field' );
@@ -45,30 +57,30 @@ foreach ( $minimCodes as $code )
 // Construct SQL query to get randomization values and diagnostics.
 $sqlRando = "SELECT record, field_rando" .
             ( $fieldDate == null ? '' : ', field_date' ) .
-            ( $fieldDate == null ? '' : ', field_bogus' ) .
+            ( $fieldBogus == null ? '' : ', field_bogus' ) .
             ', field_diag ' .
-            "FROM ( SELECT record, value AS field_rando FROM redcap_data " .
+            "FROM ( SELECT record, value AS field_rando FROM $dataTable " .
             "WHERE project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl1 ";
 
 $fieldNames = [ $fieldRando ];
 if ( $fieldDate != null )
 {
-	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_date FROM redcap_data WHERE " .
+	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_date FROM $dataTable WHERE " .
 	             "project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl2 ";
 	$fieldNames[] = $fieldDate;
 }
 if ( $fieldBogus != null )
 {
-	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_bogus FROM redcap_data WHERE " .
+	$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_bogus FROM $dataTable WHERE " .
 	             "project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl3 ";
 	$fieldNames[] = $fieldBogus;
 }
-$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_diag FROM redcap_data " .
+$sqlRando .= "NATURAL LEFT JOIN ( SELECT record, value AS field_diag FROM $dataTable " .
              "WHERE project_id = $projectID AND event_id = $eventID AND field_name = ? ) AS tbl4";
 $fieldNames[] = $fieldDiag;
 
 $queryRando = $module->query( $sqlRando, $fieldNames );
-array_unshift( $fieldNames, $module->framework->getRecordIdField() );
+array_unshift( $fieldNames, $module->getRecordIdField() );
 array_pop( $fieldNames );
 
 // Output CSV headers.

@@ -1,5 +1,7 @@
 <?php
 
+namespace Nottingham\Minimization;
+
 // This script responds to AJAX requests triggered when the randomize button is clicked.
 // Output is in JSON format.
 header( 'Content-Type: application/json' );
@@ -19,9 +21,16 @@ if ( $record == '' || $csrfToken == '' || !isset( $_SERVER['HTTP_X_RC_MIN_REQ'] 
 	exit;
 }
 
+// Use the manual randomization code, if supplied and permitted.
+$manualCode = false;
+if ( isset( $_POST['manualcode'] ) && $module->canManualRando() )
+{
+	$manualCode = $_POST['manualcode'];
+}
+
 // Attempt the randomization. This will return boolean true if successful, or a string containing
 // an error message if unsuccessful.
-$status = $module->performRando( $record );
+$status = $module->performRando( $record, $manualCode );
 if ( $status === true )
 {
 	// Retrieve the saved randomization values for the record, and output the values and allocation
@@ -32,16 +41,28 @@ if ( $status === true )
 	$dateField = $module->getProjectSetting( 'rando-date-field' );
 	$bogusField = $module->getProjectSetting( 'bogus-field' );
 	$diagField = $module->getProjectSetting( 'diag-field' );
-	$metadata = REDCap::getDataDictionary( 'array', false,
-	                                       [ $randoField, $dateField, $bogusField, $diagField ] );
+	$packField = '';
+	if ( $module->isModuleEnabled( 'pack_management', $module->getProjectId() ) )
+	{
+		$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
+		if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) &&
+		     $packMgmt->hasMinimPackCategory() &&
+		     method_exists( $packMgmt, 'getMinimPackField' ) )
+		{
+			// Get the field name for the allocation pack ID.
+			$packField = $packMgmt->getMinimPackField();
+		}
+	}
+	$metadata = \REDCap::getDataDictionary( 'array', false, [ $randoField, $dateField, $bogusField,
+	                                                          $diagField, $packField ] );
 	$form = $metadata[$randoField]['form_name'];
 	foreach ( [ $randoField, $dateField, $bogusField, $diagField ] as $fieldName )
 	{
 		if ( $fieldName != '' && $metadata[$fieldName]['form_name'] == $form )
 		{
 			$return['data'][$fieldName] =
-				$module->escapeHTML( REDCap::getData( 'array', $record, $fieldName, $randoEvent
-				                                          )[$record][$randoEvent][$fieldName] );
+				$module->escapeHTML( \REDCap::getData( 'array', $record, $fieldName, $randoEvent
+				                                           )[$record][$randoEvent][$fieldName] );
 		}
 	}
 	$return['message'] =
