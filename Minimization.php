@@ -437,6 +437,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			$dataHeadings .= ',redcap_event_name';
 		}
+		$datatable = '';
+		if ( substr( $testRunStatus['datatable'], 0, 11 ) == ( 'redcap' . '_data' ) )
+		{
+			$datatable = 'redcap' . '_data';
+			if ( strlen( $testRunStatus['datatable'] ) > 11 )
+			{
+				$datatable .= intval( substr( $testRunStatus['datatable'], 11 ) );
+			}
+		}
 		// Do the test runs.
 		for ( $testRun = $testRunStatus['current_run'];
 		      $testRun <= $testRunStatus['total_runs']; $testRun++ )
@@ -448,7 +457,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			if ( $testRunStatus['current_record'] == 0 )
 			{
 				// Delete any existing records.
-				$this->query( 'DELETE FROM ' . $testRunStatus['datatable'] .
+				$this->query( 'DELETE FROM ' . $datatable .
 				              ' WHERE project_id = ?', [ $this->getProjectId() ] );
 				\Records::resetRecordCountAndListCache( $this->getProjectId() );
 				// Create the new records.
@@ -500,11 +509,12 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 					$diagOutput = $funcGetDiagOutput( $this, self::$listTREvents );
 					$diagFileName = $testRunStatus['filename'] . $this->tt('testrun_run') .
 					                substr( '0' . $testRun, -2 ) . '.csv';
-					file_put_contents( APP_PATH_TEMP . $diagFileName, $diagOutput );
+					file_put_contents( $this->getSafePath( APP_PATH_TEMP . $diagFileName,
+					                                       APP_PATH_TEMP ), $diagOutput );
 					$diagID = \REDCap::storeFile( APP_PATH_TEMP . $diagFileName,
 					                              $this->getProjectId() );
 					\REDCap::addFileToRepository( $diagID, $this->getProjectId() );
-					unlink( APP_PATH_TEMP . $diagFileName );
+					unlink( $this->getSafePath( APP_PATH_TEMP . $diagFileName, APP_PATH_TEMP ) );
 					$testRunStatus['timestamp'] = time();
 					$testRunStatus['current_record'] = 0;
 					$testRunStatus['current_run']++;
