@@ -148,6 +148,9 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$infoRandoField = $listFields[$randoField];
 		if ( $infoRandoField['form_name'] == $instrument && $randoEvent == $event_id )
 		{
+			// Get the randomization date field.
+			$randoDateField = $this->getProjectSetting( 'rando-date-field' );
+
 			// Get the randomization code for the record (if randomized).
 			$randoCode = $this->getRandomization( $record );
 
@@ -161,6 +164,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <script type="text/javascript">
   (function ()
   {
+    var vWasManual = false
     var vFuncResult = function( result )
     {
       if ( result.status )
@@ -186,11 +190,29 @@ class Minimization extends \ExternalModules\AbstractExternalModule
         } )
         vRandoDetails.innerHTML = result.message
         dataEntryFormValuesChanged = vOldFormChangedVal
+<?php
+			if ( $randoDateField != '' )
+			{
+?>
+        if ( vWasManual )
+        {
+          var vDateRow = $( '#<?php echo $this->escapeHTML( $randoDateField ); ?>-tr' )
+          var vDateField = $( 'input[name="<?php echo $this->escapeHTML( $randoDateField ); ?>"]' )
+          vDateRow.removeClass( '@READONLY' ).removeClass( '@READONLY-FORM' )
+          vDateRow.removeClass( '@HIDDEN' ).removeClass( '@HIDDEN-FORM' )
+          vDateField.prop( 'disabled', false )
+        }
+<?php
+			}
+?>
+        calculate()
+        doBranching()
       }
       else
       {
         simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
       }
+      vWasManual = false
     }
     $( 'tr[sq_id=<?php echo $randoField; ?>] [name=<?php
 			echo $randoField; ?>]' ).css( 'display', 'none' )
@@ -280,6 +302,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
               if ( vChoice != '' )
               {
                 vOldFormChangedVal = dataEntryFormValuesChanged
+                vWasManual = true
                 $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
                           method : 'POST',
                           data : { record : '<?php echo addslashes( $record ); ?>',
@@ -547,7 +570,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	// Use only for e.g. JSON or CSV output.
 	function echoText( $text )
 	{
-		echo array_reduce( [ $text ], function( $c, $i ) { return $c . $i; }, '' );
+		$text = htmlspecialchars( $text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XHTML );
+		$chars = [ '&amp;' => 38, '&quot;' => 34, '&apos;' => 39, '&lt;' => 60, '&gt;' => 62 ];
+		$text = preg_split( '/(&(?>amp|quot|apos|lt|gt);)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+		foreach ( $text as $part )
+		{
+			echo isset( $chars[ $part ] ) ? chr( $chars[ $part ] ) : $part;
+		}
 	}
 
 
