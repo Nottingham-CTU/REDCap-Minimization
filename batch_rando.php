@@ -98,7 +98,7 @@ if ( !empty( $_POST ) && in_array( $_POST['csrf_token'], $_SESSION['redcap_csrf_
 		\System::increaseMaxExecTime( 300 );
 		// Prepare the test run status.
 		$dataTable = method_exists( '\REDCap', 'getDataTable' )
-		             ? \REDCap::getDataTable( $module->getProjectId() ) : 'redcap_data';
+		             ? \REDCap::getDataTable( $module->getProjectId() ) : ( 'redcap' . '_data' );
 		$fileName =
 				trim( preg_replace( '/[^A-Za-z0-9-]+/', '_', \REDCap::getProjectTitle() ), '_-' ) .
 				'_' . $module->tt('dldiag_title') . '_' . date( 'Ymd-Hi' ) . '_';

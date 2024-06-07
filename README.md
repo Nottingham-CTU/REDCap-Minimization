@@ -226,6 +226,21 @@ follows:
 
 
 
+## Batch Randomization / Test Runs
+
+Users with design rights (or module specific rights if enabled) can perform a batch randomization.
+To do this, go to the Batch Randomization page (using the link on the left hand side) and a table of
+all the records will be shown, with checkboxes next to the unrandomized records. Choose which
+records to randomize and click the *Randomize selected* button.
+
+If your project is in development status, the Batch Randomization page also has a *Perform Test
+Runs* feature, which allows test data to be automatically generated and a batch randomization
+performed, for a specified number of records and runs. The diagnostic data from the test runs will
+be saved in the file repository. This feature can be useful to verify that the minimization will
+work as expected.
+
+
+
 ## Randomization algorithm
 
 The algorithm used for minimization is as follows:
