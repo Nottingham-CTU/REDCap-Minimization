@@ -435,9 +435,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$queryTestRuns =
 			$this->query( "SELECT project_id, ems.value FROM redcap_external_module_settings ems " .
 			              "JOIN redcap_external_modules em ON ems.external_module_id = " .
-			              "em.external_module_id WHERE em.directory_prefix = 'minimization' AND " .
-			              "ems.key = 'testrun-status' AND ems.value->>'$.timestamp' > ? " .
-			              "ORDER BY ems.value->>'$.timestamp' LIMIT 1", [ $startTime - 1800 ] );
+			              "em.external_module_id WHERE " .
+			              "em.directory_prefix = 'minimization' AND ems.key = 'testrun-status' " .
+			              "AND json_unquote( json_extract( ems.value, '$.timestamp' ) ) > ? " .
+			              "ORDER BY json_unquote( json_extract( ems.value, '$.timestamp' ) ) " .
+			              "LIMIT 1", [ $startTime - 1800 ] );
 		$infoTestRuns = $queryTestRuns->fetch_assoc();
 		if ( $infoTestRuns == null )
 		{
