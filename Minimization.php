@@ -1112,6 +1112,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// If the pack management module is enabled, and a minimization pack category is enabled,
 		// request a pack for the chosen allocation.
 		$packField = '';
+		$packExtraData = [];
 		if ( $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
 		{
 			$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
@@ -1122,19 +1123,24 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				// Get the field name for the allocation pack ID.
 				$packField = $packMgmt->getMinimPackField();
-				// Re-obtain the codes from the list of adjusted minimization totals, and prepend
-				// the selected randomization code.
-				$listAdjustedCodes = array_keys( $listAdjustedTotals );
-				array_unshift( $listAdjustedCodes, $randoCode );
-				// Get the allocation pack details.
-				$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
-				// If false returned, a pack could not be assigned.
-				if ( $infoPack === false )
+				if ( $packField !== null )
 				{
-					return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ), $newRecordID );
+					// Re-obtain the codes from the list of adjusted minimization totals,
+					// and prepend the selected randomization code.
+					$listAdjustedCodes = array_keys( $listAdjustedTotals );
+					array_unshift( $listAdjustedCodes, $randoCode );
+					// Get the allocation pack details.
+					$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
+					// If false returned, a pack could not be assigned.
+					if ( $infoPack === false )
+					{
+						return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ),
+						                               $newRecordID );
+					}
+					$packID = $infoPack['packID'];
+					$randoCode = $infoPack['randoCode'];
+					$packExtraData = $infoPack['extraData'];
 				}
-				$packID = $infoPack['packID'];
-				$randoCode = $infoPack['randoCode'];
 			}
 		}
 
@@ -1265,6 +1271,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$diagData['bogus_value'] = $bogusValue;
 			}
+			if ( $packField != '' )
+			{
+				$diagData['pack_id'] = $packID;
+				$diagData['pack_new_code'] = ( $randoCode != $listAdjustedCodes[0] );
+			}
 			$diagData = json_encode( $diagData );
 		}
 
@@ -1288,6 +1299,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		$result = \REDCap::saveData( $this->getProjectId(), 'array', $inputData, 'normal',
 		                             'YMD', 'flat', null, false );
+		if ( is_string( $result['errors'] ) )
+		{
+			$result['errors'] = [ $result['errors'] ];
+		}
 		if ( count( $result['errors'] ) > 0 )
 		{
 			return $this->logRandoFailure( $this->tt('rando_save_error') . ":\n" .
@@ -1300,6 +1315,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                     ( $diagField == '' ? '' : "\n$diagField" ) .
 		                     ( $packField == '' ? '' : "\n$packField" ) ),
 		                   null, $newRecordID, $randoEvent, $this->getProjectId() );
+		// Store extra pack data.
+		if ( ! empty( $packExtraData ) )
+		{
+			$inputExtraData = [];
+			$inputExtraData[$newRecordID][$randoEvent] = $packExtraData;
+			\REDCap::saveData( $this->getProjectId(), 'array', $inputExtraData,
+			                   'normal', 'YMD', 'flat');
+		}
 		return true;
 	}
 
