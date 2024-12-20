@@ -604,7 +604,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			$modeEvent = $this->getProjectSetting( 'mode-event' );
 			$modeField = $this->getProjectSetting( 'mode-field' );
-			$modeValue = $infoNewRecord[$modeEvent][$modeField];
+			$infoRecord = \REDCap::getData( [ 'project_id' => $this->getProjectId(),
+		                                      'return_format' => 'array',
+		                                      'combine_checkbox_values' => true,
+		                                      'records' => $record,
+		                                      'events' => $modeEvent,
+		                                      'fields' => $modeField ] )[ $record ];
+			$modeValue = $infoRecord[$modeEvent][$modeField];
 			$minMode = -1;
 			$listModeValues = $this->getProjectSetting( 'minim-mode' );
 			for ( $i = 0; $i < count( $listModeValues ); $i++ )
