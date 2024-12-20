@@ -62,25 +62,28 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			return;
 		}
-		$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
-		$GLOBALS['Proj']->metadata[$randoField]['misc'] =
+		if ( array_key_exists( $randoField, $GLOBALS['Proj']->metadata ) )
+		{
+			$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$randoField]['misc'] =
 				'@READONLY-SURVEY @READONLY-APP ' . $GLOBALS['Proj']->metadata[$randoField]['misc'];
+		}
 		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		$bogusField = $this->getProjectSetting( 'bogus-field' );
 		$diagField = $this->getProjectSetting( 'diag-field' );
-		if ( $dateField != '' )
+		if ( $dateField != '' && array_key_exists( $dateField, $GLOBALS['Proj']->metadata ) )
 		{
 			$GLOBALS['Proj']->metadata[$dateField]['field_req'] = 0;
 			$GLOBALS['Proj']->metadata[$dateField]['misc'] =
 					'@READONLY ' . $GLOBALS['Proj']->metadata[$dateField]['misc'];
 		}
-		if ( $bogusField != '' )
+		if ( $bogusField != '' && array_key_exists( $bogusField, $GLOBALS['Proj']->metadata ) )
 		{
 			$GLOBALS['Proj']->metadata[$bogusField]['field_req'] = 0;
 			$GLOBALS['Proj']->metadata[$bogusField]['misc'] =
 					'@READONLY ' . $GLOBALS['Proj']->metadata[$bogusField]['misc'];
 		}
-		if ( $diagField != '' )
+		if ( $diagField != '' && array_key_exists( $diagField, $GLOBALS['Proj']->metadata ) )
 		{
 			$GLOBALS['Proj']->metadata[$diagField]['field_req'] = 0;
 			$GLOBALS['Proj']->metadata[$diagField]['misc'] =
