@@ -1,0 +1,20 @@
+# Run the REDCap External Module Security Scan
+
+name: REDCap External Module Security Scan
+
+on:
+  pull_request:
+    branches:  # Pull requests targeting these branches will trigger the job.
+      - main
+  #workflow_dispatch:  # Uncomment to allow triggering the job manually.
+
+jobs:
+  jobs:
+    name: Jobs
+    uses: Nottingham-CTU/Workflows/.github/workflows/redcap-security-scan.yml@main
+    with:
+      #RC_SYSTEM_HOOKS: true  # Uncomment if the module is using system hooks.
+      RC_COMMUNITY_USERNAME: ${{ vars.RC_COMMUNITY_USERNAME }}
+    secrets:
+      RC_COMMUNITY_PASSWORD: ${{ secrets.RC_COMMUNITY_PASSWORD }}
+

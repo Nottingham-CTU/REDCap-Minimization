@@ -62,25 +62,28 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			return;
 		}
-		$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
-		$GLOBALS['Proj']->metadata[$randoField]['misc'] =
+		if ( array_key_exists( $randoField, $GLOBALS['Proj']->metadata ) )
+		{
+			$GLOBALS['Proj']->metadata[$randoField]['field_req'] = 0;
+			$GLOBALS['Proj']->metadata[$randoField]['misc'] =
 				'@READONLY-SURVEY @READONLY-APP ' . $GLOBALS['Proj']->metadata[$randoField]['misc'];
+		}
 		$dateField = $this->getProjectSetting( 'rando-date-field' );
 		$bogusField = $this->getProjectSetting( 'bogus-field' );
 		$diagField = $this->getProjectSetting( 'diag-field' );
-		if ( $dateField != '' )
+		if ( $dateField != '' && array_key_exists( $dateField, $GLOBALS['Proj']->metadata ) )
 		{
 			$GLOBALS['Proj']->metadata[$dateField]['field_req'] = 0;
 			$GLOBALS['Proj']->metadata[$dateField]['misc'] =
 					'@READONLY ' . $GLOBALS['Proj']->metadata[$dateField]['misc'];
 		}
-		if ( $bogusField != '' )
+		if ( $bogusField != '' && array_key_exists( $bogusField, $GLOBALS['Proj']->metadata ) )
 		{
 			$GLOBALS['Proj']->metadata[$bogusField]['field_req'] = 0;
 			$GLOBALS['Proj']->metadata[$bogusField]['misc'] =
 					'@READONLY ' . $GLOBALS['Proj']->metadata[$bogusField]['misc'];
 		}
-		if ( $diagField != '' )
+		if ( $diagField != '' && array_key_exists( $diagField, $GLOBALS['Proj']->metadata ) )
 		{
 			$GLOBALS['Proj']->metadata[$diagField]['field_req'] = 0;
 			$GLOBALS['Proj']->metadata[$diagField]['misc'] =
@@ -435,9 +438,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		$queryTestRuns =
 			$this->query( "SELECT project_id, ems.value FROM redcap_external_module_settings ems " .
 			              "JOIN redcap_external_modules em ON ems.external_module_id = " .
-			              "em.external_module_id WHERE em.directory_prefix = 'minimization' AND " .
-			              "ems.key = 'testrun-status' AND ems.value->>'$.timestamp' > ? " .
-			              "ORDER BY ems.value->>'$.timestamp' LIMIT 1", [ $startTime - 1800 ] );
+			              "em.external_module_id WHERE " .
+			              "em.directory_prefix = 'minimization' AND ems.key = 'testrun-status' " .
+			              "AND json_unquote( json_extract( ems.value, '$.timestamp' ) ) > ? " .
+			              "ORDER BY json_unquote( json_extract( ems.value, '$.timestamp' ) ) " .
+			              "LIMIT 1", [ $startTime - 1800 ] );
 		$infoTestRuns = $queryTestRuns->fetch_assoc();
 		if ( $infoTestRuns == null )
 		{
@@ -599,7 +604,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		{
 			$modeEvent = $this->getProjectSetting( 'mode-event' );
 			$modeField = $this->getProjectSetting( 'mode-field' );
-			$modeValue = $infoNewRecord[$modeEvent][$modeField];
+			$infoRecord = \REDCap::getData( [ 'project_id' => $this->getProjectId(),
+		                                      'return_format' => 'array',
+		                                      'combine_checkbox_values' => true,
+		                                      'records' => $record,
+		                                      'events' => $modeEvent,
+		                                      'fields' => $modeField ] )[ $record ];
+			$modeValue = $infoRecord[$modeEvent][$modeField];
 			$minMode = -1;
 			$listModeValues = $this->getProjectSetting( 'minim-mode' );
 			for ( $i = 0; $i < count( $listModeValues ); $i++ )
@@ -1110,6 +1121,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// If the pack management module is enabled, and a minimization pack category is enabled,
 		// request a pack for the chosen allocation.
 		$packField = '';
+		$packExtraData = [];
 		if ( $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
 		{
 			$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
@@ -1120,19 +1132,24 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				// Get the field name for the allocation pack ID.
 				$packField = $packMgmt->getMinimPackField();
-				// Re-obtain the codes from the list of adjusted minimization totals, and prepend
-				// the selected randomization code.
-				$listAdjustedCodes = array_keys( $listAdjustedTotals );
-				array_unshift( $listAdjustedCodes, $randoCode );
-				// Get the allocation pack details.
-				$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
-				// If false returned, a pack could not be assigned.
-				if ( $infoPack === false )
+				if ( $packField !== null )
 				{
-					return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ), $newRecordID );
+					// Re-obtain the codes from the list of adjusted minimization totals,
+					// and prepend the selected randomization code.
+					$listAdjustedCodes = array_keys( $listAdjustedTotals );
+					array_unshift( $listAdjustedCodes, $randoCode );
+					// Get the allocation pack details.
+					$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
+					// If false returned, a pack could not be assigned.
+					if ( $infoPack === false )
+					{
+						return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ),
+						                               $newRecordID );
+					}
+					$packID = $infoPack['packID'];
+					$randoCode = $infoPack['randoCode'];
+					$packExtraData = $infoPack['extraData'];
 				}
-				$packID = $infoPack['packID'];
-				$randoCode = $infoPack['randoCode'];
 			}
 		}
 
@@ -1263,6 +1280,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$diagData['bogus_value'] = $bogusValue;
 			}
+			if ( $packField != '' )
+			{
+				$diagData['pack_id'] = $packID;
+				$diagData['pack_new_code'] = ( $randoCode != $listAdjustedCodes[0] );
+			}
 			$diagData = json_encode( $diagData );
 		}
 
@@ -1286,6 +1308,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		}
 		$result = \REDCap::saveData( $this->getProjectId(), 'array', $inputData, 'normal',
 		                             'YMD', 'flat', null, false );
+		if ( is_string( $result['errors'] ) )
+		{
+			$result['errors'] = [ $result['errors'] ];
+		}
 		if ( count( $result['errors'] ) > 0 )
 		{
 			return $this->logRandoFailure( $this->tt('rando_save_error') . ":\n" .
@@ -1298,6 +1324,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		                     ( $diagField == '' ? '' : "\n$diagField" ) .
 		                     ( $packField == '' ? '' : "\n$packField" ) ),
 		                   null, $newRecordID, $randoEvent, $this->getProjectId() );
+		// Store extra pack data.
+		if ( ! empty( $packExtraData ) )
+		{
+			$inputExtraData = [];
+			$inputExtraData[$newRecordID][$randoEvent] = $packExtraData;
+			\REDCap::saveData( $this->getProjectId(), 'array', $inputExtraData,
+			                   'normal', 'YMD', 'flat');
+		}
 		return true;
 	}
 
