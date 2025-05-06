@@ -7,6 +7,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 	static $listTREvents = null;
 
+
+	// Check if an encryption key has been set and set one if not.
+	function redcap_module_system_enable( $version )
+	{
+		if ( $this->getSystemSetting( 'encryption-key' ) == '' )
+		{
+			// Create a 256 bit encryption key.
+			$this->setSystemSetting( 'encryption-key', base64_encode( random_bytes( 32 ) ) );
+		}
+	}
+
+
+
 	// Determine whether the module links should be displayed, based on user type/role.
 	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
@@ -449,6 +462,52 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return false;
+	}
+
+
+
+	// Encryption/decryption functions for e.g. diagnostic data, to help maintain blinding.
+	// These functions are not designed to guarantee encryption. If encryption is not possible or
+	// fails for some reason the plaintext will be returned.
+	function dataDecrypt( $data )
+	{
+		if ( ! preg_match( '/^[0-9]+\//', $data ) )
+		{
+			return $data;
+		}
+		$encryptionKey = $this->getSystemSetting( 'encryption-key' );
+		if ( substr( $data, 0, 2 ) == '1/' )
+		{
+			$ivLength = openssl_cipher_iv_length( 'aes-256-gcm' );
+			$encrypted = base64_decode( substr( $data, 2 ) );
+			$iv = substr( $encrypted, 0, $ivLength );
+			$tag = substr( $encrypted, -16 );
+			$encrypted = substr( $encrypted, $ivLength, -16 );
+			$decrypted = openssl_decrypt( $encrypted, 'aes-256-gcm', $encryptionKey,
+			                              OPENSSL_RAW_DATA, $iv, $tag, '' );
+			if ( is_string( $decrypted ) )
+			{
+				return $decrypted;
+			}
+		}
+		return $data;
+	}
+
+	function dataEncrypt( $data )
+	{
+		if ( ! function_exists( 'openssl_cipher_iv_length' ) )
+		{
+			return $data;
+		}
+		$encryptionKey = $this->getSystemSetting( 'encryption-key' );
+		$iv = random_bytes( openssl_cipher_iv_length( 'aes-256-gcm' ) );
+		$encrypted = openssl_encrypt( $data, 'aes-256-gcm', $encryptionKey,
+		                              OPENSSL_RAW_DATA, $iv, $tag, '', 16 );
+		if ( ! is_string( $encrypted ) )
+		{
+			return $data;
+		}
+		return '1/' . base64_encode( $iv . $encrypted . $tag );
 	}
 
 
@@ -1345,7 +1404,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData['pack_id'] = $packID;
 				$diagData['pack_new_code'] = ( $randoCode != $listAdjustedCodes[0] );
 			}
-			$diagData = json_encode( $diagData );
+			$diagData = $this->dataEncrypt( json_encode( $diagData ) );
 		}
 
 		// Save the randomization code to the record.
@@ -1413,6 +1472,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 		if ( $this->getProjectID() === null )
 		{
+			$encryptionKey = $this->getSystemSetting( 'encryption-key' );
+			if ( $encryptionKey == '' || strlen( base64_decode( $encryptionKey ) ) != 32 )
+			{
+				return $this->tt( 'validate_setting_encryption_key' );
+			}
 			return null;
 		}
 

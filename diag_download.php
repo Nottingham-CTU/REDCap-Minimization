@@ -167,7 +167,7 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 	{
 		continue;
 	}
-	$randoDiag = json_decode( $itemRando['field_diag'], true );
+	$randoDiag = json_decode( $module->dataDecrypt( $itemRando['field_diag'] ), true );
 	if ( $randoDiag === null )
 	{
 		continue;
