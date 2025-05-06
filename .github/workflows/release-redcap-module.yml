@@ -1,0 +1,18 @@
+# Create a release for a new version of a REDCap External Module, when a pull request with a version
+# number is merged into the main branch.
+
+name: Release REDCap Module
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  jobs:
+    name: Jobs
+    uses: Nottingham-CTU/Workflows/.github/workflows/release-redcap-module.yml@main
+
