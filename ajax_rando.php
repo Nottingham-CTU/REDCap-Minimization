@@ -42,16 +42,12 @@ if ( $status === true )
 	$bogusField = $module->getProjectSetting( 'bogus-field' );
 	$diagField = $module->getProjectSetting( 'diag-field' );
 	$packField = '';
-	if ( $module->isModuleEnabled( 'pack_management', $module->getProjectId() ) )
+	list( $packMgmt, $packMgmtCat ) =
+			$this->getPackMgmtModule( $randoField, [ 'getMinimPackField' ] );
+	if ( $packMgmt !== false )
 	{
-		$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
-		if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) &&
-		     $packMgmt->hasMinimPackCategory() &&
-		     method_exists( $packMgmt, 'getMinimPackField' ) )
-		{
-			// Get the field name for the allocation pack ID.
-			$packField = $packMgmt->getMinimPackField();
-		}
+		// Get the field name for the allocation pack ID.
+		$packField = $packMgmt->getMinimPackField( $packMgmtCat );
 	}
 	$metadata = \REDCap::getDataDictionary( 'array', false, [ $randoField, $dateField, $bogusField,
 	                                                          $diagField, $packField ] );

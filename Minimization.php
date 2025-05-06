@@ -278,6 +278,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				// If the user can perform manual randomizations, show the option for this.
 				if ( $this->canManualRando() )
 				{
+					$listPacks = [];
+					list( $packMgmt, $packMgmtCat ) =
+						$this->getPackMgmtModule( $randoField, [ 'getMinimManualList' ] );
+					if ( $packMgmt !== false )
+					{
+						$listPacks = $packMgmt->getMinimManualList( $record, $packMgmtCat );
+					}
 ?>
     var vManualLink = $('<a href="#" onclick="event.preventDefault()"><?php
 					echo $this->tt('rando_form_manual');
@@ -286,11 +293,26 @@ class Minimization extends \ExternalModules\AbstractExternalModule
     var vManualDialog = $('<div></div>')
     vManualDialog.append('<p><?php echo $this->tt('rando_form_manual_choose'); ?></p>')
     vManualDialog.append('<p><select><option></option><?php
-					foreach ( $this->getCodeList( $record ) as $c => $d )
+					if ( ! empty( $listPacks ) )
 					{
-						echo '<option value="', $this->escapeHTML( $c ), '">',
+						echo '<optgroup label="', $this->tt('rando_form_manual_choose_p'), '">';
+					}
+					foreach ( $listPacks as $c => $d )
+					{
+						echo '<option value="p', $this->escapeHTML( $c ), '">',
 						     $this->escapeHTML( $d ), '</option>';
 					}
+					if ( ! empty( $listPacks ) )
+					{
+						echo '</optgroup>';
+					}
+					echo '<optgroup label="', $this->tt('rando_form_manual_choose_a'), '">';
+					foreach ( $this->getCodeList( $record ) as $c => $d )
+					{
+						echo '<option value="a', $this->escapeHTML( $c ), '">',
+						     $this->escapeHTML( $d ), '</option>';
+					}
+					echo '</optgroup>';
 ?></select>')
     vManualLink.click( function()
     {
@@ -661,6 +683,41 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return null;
+	}
+
+
+
+	function getPackMgmtModule( $randoField, $checkMethods = [] )
+	{
+		if ( ! $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
+		{
+			return [ false, false ];
+		}
+		$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
+		foreach ( $checkMethods as $method )
+		{
+			if ( ! method_exists( $packMgmt, $method ) )
+			{
+				return [ false, false ];
+			}
+		}
+		$packMgmtCat = false;
+		if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) )
+		{
+			if ( $packMgmt->hasMinimPackCategory( $randoField ) )
+			{
+				$packMgmtCat = $randoField;
+			}
+			elseif ( $packMgmt->hasMinimPackCategory( '' ) )
+			{
+				$packMgmtCat = '';
+			}
+		}
+		if ( $packMgmtCat === false )
+		{
+			return [ false, false ];
+		}
+		return [ $packMgmt, $packMgmtCat ];
 	}
 
 
@@ -1046,10 +1103,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$listRandoProportional =
 					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
 		}
-		if ( $manualCode !== false )
+		if ( $manualCode !== false && substr( $manualCode, 0, 1 ) == 'a' )
 		{
 			// Do the manual randomization if requested.
-			$randoCode = $manualCode;
+			$randoCode = substr( $manualCode, 1 );
 			$randomApplied['details'] = $this->tt( 'diag_manual' );
 		}
 		elseif ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
@@ -1122,34 +1179,37 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// request a pack for the chosen allocation.
 		$packField = '';
 		$packExtraData = [];
-		if ( $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
+		list( $packMgmt, $packMgmtCat ) =
+			$this->getPackMgmtModule( $randoField, [ 'getMinimPackField', 'assignMinimPack' ] );
+		if ( $packMgmt !== false )
 		{
-			$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
-			if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) &&
-			     $packMgmt->hasMinimPackCategory() &&
-			     method_exists( $packMgmt, 'getMinimPackField' ) &&
-			     method_exists( $packMgmt, 'assignMinimPack' ) )
+			// Get the field name for the allocation pack ID.
+			$packField = $packMgmt->getMinimPackField( $packMgmtCat );
+			if ( $packField !== null )
 			{
-				// Get the field name for the allocation pack ID.
-				$packField = $packMgmt->getMinimPackField();
-				if ( $packField !== null )
+				// Re-obtain the codes from the list of adjusted minimization totals,
+				// and prepend the selected randomization code.
+				$listAdjustedCodes = array_keys( $listAdjustedTotals );
+				array_unshift( $listAdjustedCodes, $randoCode );
+				// For manual randomization by pack ID, set the pack ID.
+				$packID = null;
+				if ( $manualCode !== false && substr( $manualCode, 0, 1 ) == 'p' )
 				{
-					// Re-obtain the codes from the list of adjusted minimization totals,
-					// and prepend the selected randomization code.
-					$listAdjustedCodes = array_keys( $listAdjustedTotals );
-					array_unshift( $listAdjustedCodes, $randoCode );
-					// Get the allocation pack details.
-					$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
-					// If false returned, a pack could not be assigned.
-					if ( $infoPack === false )
-					{
-						return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ),
-						                               $newRecordID );
-					}
-					$packID = $infoPack['packID'];
-					$randoCode = $infoPack['randoCode'];
-					$packExtraData = $infoPack['extraData'];
+					$packID = substr( $manualCode, 1 );
+					$randomApplied = [ 'initial' => false, 'factor' => null, 'threshold' => null,
+					                   'values' => [], 'details' => $this->tt( 'diag_manual' ) ];
 				}
+				// Get the allocation pack details.
+				$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes,
+				                                        $packMgmtCat, $packID );
+				// If false returned, a pack could not be assigned.
+				if ( $infoPack === false )
+				{
+					return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ), $newRecordID );
+				}
+				$packID = $infoPack['packID'];
+				$randoCode = $infoPack['randoCode'];
+				$packExtraData = $infoPack['extraData'];
 			}
 		}
 
