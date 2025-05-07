@@ -21,7 +21,8 @@ if ( ! $forTestRuns )
 	     ( $module->getSystemSetting( 'config-require-user-permission' ) == 'true' &&
 	       ! in_array( 'minimization',
 	                   $module->getUser()->getRights()['external_module_config'] ) ) ||
-	     ! $module->getUser()->hasDesignRights() )
+	     ( $module->getSystemSetting( 'config-require-user-permission' ) != 'true' &&
+	       ! $module->getUser()->hasDesignRights() ) )
 	{
 		exit;
 	}
