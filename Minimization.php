@@ -861,7 +861,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$irStratEvent = $listIRStratEvents[$i];
 				$irStratField = $listIRStratFields[$i];
-				if ( $infoNewRecord[$irStratEvent][$irStratField] == '' )
+				if ( $manualCode === false && $infoNewRecord[$irStratEvent][$irStratField] == '' )
 				{
 					return $this->logRandoFailure( $this->tt( 'rando_msg_field_missing',
 					                                          $irStratField ), $newRecordID );
@@ -885,7 +885,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$stratEvent = $listStratEvents[$i];
 				$stratField = $listStratFields[$i];
-				if ( $infoNewRecord[$stratEvent][$stratField] == '' )
+				if ( $manualCode === false && $infoNewRecord[$stratEvent][$stratField] == '' )
 				{
 					return $this->logRandoFailure( $this->tt( 'rando_msg_strat_missing',
 					                                          $stratField ), $newRecordID );
@@ -978,7 +978,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}
 		}
-		if ( $minMode < 0 )
+		if ( $manualCode === false && $minMode < 0 )
 		{
 			return $this->logRandoFailure( $this->tt( 'rando_msg_mmode_missing', $modeField ),
 			                               $newRecordID );
@@ -1011,7 +1011,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$minEvent = $listMinEvents[$i];
 			$minField = $listMinFields[$i];
 			$minValue = $infoNewRecord[$minEvent][$minField];
-			if ( $minValue == '' )
+			if ( $manualCode === false && $minValue == '' )
 			{
 				return $this->logRandoFailure( $this->tt( 'rando_msg_minim_missing', $minField ),
 				                               $newRecordID );
