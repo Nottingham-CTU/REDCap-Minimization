@@ -239,6 +239,10 @@ performed, for a specified number of records and runs. The diagnostic data from 
 be saved in the file repository. This feature can be useful to verify that the minimization will
 work as expected.
 
+*The parameters used for the test run will also be saved to a file in the file repository. If you
+want to redo a test run with the same parameters, you can download the* `params` *file, then drag
+and drop it onto the* Perform Test Runs *form to fill it in with those parameters.*
+
 
 
 ## Randomization algorithm
