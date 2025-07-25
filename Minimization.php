@@ -392,12 +392,17 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 	// Perform randomization on form submission, if configured.
-	function redcap_save_record( $project_id, $record, $instrument, $event_id )
+	function redcap_save_record( $projectID, $record, $instrument, $eventID, $groupID,
+	                             $surveyHash, $responseID, $repeatInstance )
 	{
+		// Set the global pid variable to the provided projectID in case another module changed it.
+		$oldGetPid = $_GET['pid'];
+		$_GET['pid'] = (string) $projectID;
+
 		$randoEvent = $this->getProjectSetting( 'rando-event' );
 		$randoField = $this->getProjectSetting( 'rando-field' );
 		if ( // Check rando event/field are defined and the submission is for the rando event.
-		     $randoEvent != '' && $randoField != '' && $event_id == $randoEvent &&
+		     $randoEvent != '' && $randoField != '' && $eventID == $randoEvent &&
 		     // Check that the submission is for the form which triggers randomization.
 		     $instrument == $this->getProjectSetting( 'rando-submit-form' ) &&
 		     // Check that the record is not already randomized (randomization field is blank).
@@ -407,7 +412,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		     // that randomizatons are to be performed regardless of form status.
 		     ( $this->getProjectSetting( 'rando-submit-any-status' ) ||
 		       \REDCap::getData( 'array', $record, $instrument . '_complete',
-		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' ) )
+		                       $eventID )[$record][$eventID][$instrument . '_complete'] == '2' ) )
 		{
 			// Attempt randomization and get status (true if successful, otherwise error message).
 			$status = $this->performRando( $record );
@@ -421,11 +426,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				if ( $this->getProjectSetting( 'rando-submit-status-reset' ) )
 				{
 					\REDCap::saveData( 'array', [ $record =>
-					                              [ $event_id =>
+					                              [ $eventID =>
 					                                [ $instrument . '_complete' => '0' ] ] ] );
 				}
 			}
 		}
+
+		// Restore the original global pid variable.
+		$_GET['pid'] = $oldGetPid;
 	}
 
 
