@@ -43,7 +43,7 @@ if ( $status === true )
 	$diagField = $module->getProjectSetting( 'diag-field' );
 	$packField = '';
 	list( $packMgmt, $packMgmtCat ) =
-			$this->getPackMgmtModule( $randoField, [ 'getMinimPackField' ] );
+			$module->getPackMgmtModule( $randoField, [ 'getMinimPackField' ] );
 	if ( $packMgmt !== false )
 	{
 		// Get the field name for the allocation pack ID.
