@@ -223,9 +223,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 ?>
         calculate()
         doBranching()
+        showProgress( false )
       }
       else
       {
+        showProgress( false )
         simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
       }
       vWasManual = false
@@ -259,6 +261,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
       {
         return false
       }
+      showProgress( true )
       vOldFormChangedVal = dataEntryFormValuesChanged
       $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
                 method : 'POST',
@@ -339,6 +342,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
               var vChoice = $(this).find('select').val()
               if ( vChoice != '' )
               {
+                showProgress( true )
                 vOldFormChangedVal = dataEntryFormValuesChanged
                 vWasManual = true
                 $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
