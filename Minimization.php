@@ -1416,7 +1416,25 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData['pack_id'] = $packID;
 				$diagData['pack_new_code'] = ( $randoCode != $listAdjustedCodes[0] );
 			}
-			$diagData = $this->dataEncrypt( json_encode( $diagData ) );
+			// Encrypt the diagnostic data unless *only* unencrypted diagnostics already exist.
+			$dataTable = method_exists( '\REDCap', 'getDataTable' )
+			             ? \REDCap::getDataTable( $this->getProjectId() ) : ( 'redcap' . '_data' );
+			$diagEncCheck = $this->query( 'SELECT ( SELECT count(*) FROM ' . $dataTable . ' WHERE' .
+			                              ' project_id = ? AND field_name = ? AND length(`value`)' .
+			                              ' > 1 AND left(`value`,1) = \'{\' ) AS un, ( SELECT ' .
+			                              'count(*) FROM ' . $dataTable . ' WHERE project_id = ? ' .
+			                              'AND field_name = ? AND length(`value`) > 1 AND ' .
+			                              'left(`value`,1) <> \'{\' ) AS enc',
+			                              [ $this->getProjectId(), $diagField,
+			                                $this->getProjectId(), $diagField ] )->fetch_assoc();
+			if ( $diagEncCheck['enc'] > 0 || $diagEncCheck['un'] == 0 )
+			{
+				$diagData = $this->dataEncrypt( json_encode( $diagData ) );
+			}
+			else
+			{
+				$diagData = json_encode( $diagData );
+			}
 		}
 
 		// Save the randomization code to the record.

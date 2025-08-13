@@ -323,8 +323,11 @@ proportional list. This process is separate from the real randomization allocati
 ### Encryption key
 The value for this setting will be automatically generated and is used to encrypt the diagnostic
 output data, if a field for diagnostic output has been specified. This data is thus kept unreadable
-within the project except when using the *Download Minimization Diagnostic* option. *There should
-normally be no need to change the encryption key*, unless you need multiple servers to use the same
-key because you are moving/sharing data between them. ***Do not change the encryption key after
-randomizations with diagnostic output have been performed.***
+within the project except when using the *Download Minimization Diagnostic* option.
 
+*There should normally be no need to change the encryption key*, unless you need multiple servers to
+use the same key because you are moving/sharing data between them. ***Do not change the encryption
+key after randomizations with diagnostic output have been performed.***
+
+Note that projects which already contain unencrypted diagnostic output (from earlier versions of
+this module) will continue to have diagnostic output saved unencrypted.
