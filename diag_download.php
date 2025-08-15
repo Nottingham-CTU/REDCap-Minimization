@@ -21,7 +21,8 @@ if ( ! $forTestRuns )
 	     ( $module->getSystemSetting( 'config-require-user-permission' ) == 'true' &&
 	       ! in_array( 'minimization',
 	                   $module->getUser()->getRights()['external_module_config'] ) ) ||
-	     ! $module->getUser()->hasDesignRights() )
+	     ( $module->getSystemSetting( 'config-require-user-permission' ) != 'true' &&
+	       ! $module->getUser()->hasDesignRights() ) )
 	{
 		exit;
 	}
@@ -167,7 +168,7 @@ while ( $itemRando = $queryRando->fetch_assoc() )
 	{
 		continue;
 	}
-	$randoDiag = json_decode( $itemRando['field_diag'], true );
+	$randoDiag = json_decode( $module->dataDecrypt( $itemRando['field_diag'] ), true );
 	if ( $randoDiag === null )
 	{
 		continue;

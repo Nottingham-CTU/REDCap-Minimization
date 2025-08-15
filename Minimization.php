@@ -7,6 +7,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 	static $listTREvents = null;
 
+
+	// Check if an encryption key has been set and set one if not.
+	function redcap_module_system_enable( $version )
+	{
+		if ( $this->getSystemSetting( 'encryption-key' ) == '' )
+		{
+			// Create a 256 bit encryption key.
+			$this->setSystemSetting( 'encryption-key', base64_encode( random_bytes( 32 ) ) );
+		}
+	}
+
+
+
 	// Determine whether the module links should be displayed, based on user type/role.
 	// Only show the links to users with permission to modify the module configuration.
 	function redcap_module_link_check_display( $project_id, $link )
@@ -210,9 +223,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 ?>
         calculate()
         doBranching()
+        showProgress( false )
       }
       else
       {
+        showProgress( false )
         simpleDialog( result.message, '<?php echo $this->tt('cannot_rando'); ?>' )
       }
       vWasManual = false
@@ -246,6 +261,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
       {
         return false
       }
+      showProgress( true )
       vOldFormChangedVal = dataEntryFormValuesChanged
       $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
                 method : 'POST',
@@ -278,6 +294,13 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				// If the user can perform manual randomizations, show the option for this.
 				if ( $this->canManualRando() )
 				{
+					$listPacks = [];
+					list( $packMgmt, $packMgmtCat ) =
+						$this->getPackMgmtModule( $randoField, [ 'getMinimManualList' ] );
+					if ( $packMgmt !== false )
+					{
+						$listPacks = $packMgmt->getMinimManualList( $record, $packMgmtCat );
+					}
 ?>
     var vManualLink = $('<a href="#" onclick="event.preventDefault()"><?php
 					echo $this->tt('rando_form_manual');
@@ -286,11 +309,26 @@ class Minimization extends \ExternalModules\AbstractExternalModule
     var vManualDialog = $('<div></div>')
     vManualDialog.append('<p><?php echo $this->tt('rando_form_manual_choose'); ?></p>')
     vManualDialog.append('<p><select><option></option><?php
-					foreach ( $this->getCodeList( $record ) as $c => $d )
+					if ( ! empty( $listPacks ) )
 					{
-						echo '<option value="', $this->escapeHTML( $c ), '">',
+						echo '<optgroup label="', $this->tt('rando_form_manual_choose_p'), '">';
+					}
+					foreach ( $listPacks as $c => $d )
+					{
+						echo '<option value="p', $this->escapeHTML( $c ), '">',
 						     $this->escapeHTML( $d ), '</option>';
 					}
+					if ( ! empty( $listPacks ) )
+					{
+						echo '</optgroup>';
+					}
+					echo '<optgroup label="', $this->tt('rando_form_manual_choose_a'), '">';
+					foreach ( $this->getCodeList( $record ) as $c => $d )
+					{
+						echo '<option value="a', $this->escapeHTML( $c ), '">',
+						     $this->escapeHTML( $d ), '</option>';
+					}
+					echo '</optgroup>';
 ?></select>')
     vManualLink.click( function()
     {
@@ -304,6 +342,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
               var vChoice = $(this).find('select').val()
               if ( vChoice != '' )
               {
+                showProgress( true )
                 vOldFormChangedVal = dataEntryFormValuesChanged
                 vWasManual = true
                 $.ajax( { url : '<?php echo $this->getUrl( 'ajax_rando.php' ); ?>',
@@ -357,12 +396,17 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 	// Perform randomization on form submission, if configured.
-	function redcap_save_record( $project_id, $record, $instrument, $event_id )
+	function redcap_save_record( $projectID, $record, $instrument, $eventID, $groupID,
+	                             $surveyHash, $responseID, $repeatInstance )
 	{
+		// Set the global pid variable to the provided projectID in case another module changed it.
+		$oldGetPid = $_GET['pid'];
+		$_GET['pid'] = (string) $projectID;
+
 		$randoEvent = $this->getProjectSetting( 'rando-event' );
 		$randoField = $this->getProjectSetting( 'rando-field' );
 		if ( // Check rando event/field are defined and the submission is for the rando event.
-		     $randoEvent != '' && $randoField != '' && $event_id == $randoEvent &&
+		     $randoEvent != '' && $randoField != '' && $eventID == $randoEvent &&
 		     // Check that the submission is for the form which triggers randomization.
 		     $instrument == $this->getProjectSetting( 'rando-submit-form' ) &&
 		     // Check that the record is not already randomized (randomization field is blank).
@@ -372,7 +416,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		     // that randomizatons are to be performed regardless of form status.
 		     ( $this->getProjectSetting( 'rando-submit-any-status' ) ||
 		       \REDCap::getData( 'array', $record, $instrument . '_complete',
-		                       $event_id )[$record][$event_id][$instrument . '_complete'] == '2' ) )
+		                       $eventID )[$record][$eventID][$instrument . '_complete'] == '2' ) )
 		{
 			// Attempt randomization and get status (true if successful, otherwise error message).
 			$status = $this->performRando( $record );
@@ -386,11 +430,14 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				if ( $this->getProjectSetting( 'rando-submit-status-reset' ) )
 				{
 					\REDCap::saveData( 'array', [ $record =>
-					                              [ $event_id =>
+					                              [ $eventID =>
 					                                [ $instrument . '_complete' => '0' ] ] ] );
 				}
 			}
 		}
+
+		// Restore the original global pid variable.
+		$_GET['pid'] = $oldGetPid;
 	}
 
 
@@ -427,6 +474,52 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return false;
+	}
+
+
+
+	// Encryption/decryption functions for e.g. diagnostic data, to help maintain blinding.
+	// These functions are not designed to guarantee encryption. If encryption is not possible or
+	// fails for some reason the plaintext will be returned.
+	function dataDecrypt( $data )
+	{
+		if ( ! preg_match( '/^[0-9]+\//', $data ) )
+		{
+			return $data;
+		}
+		$encryptionKey = $this->getSystemSetting( 'encryption-key' );
+		if ( substr( $data, 0, 2 ) == '1/' )
+		{
+			$ivLength = openssl_cipher_iv_length( 'aes-256-gcm' );
+			$encrypted = base64_decode( substr( $data, 2 ) );
+			$iv = substr( $encrypted, 0, $ivLength );
+			$tag = substr( $encrypted, -16 );
+			$encrypted = substr( $encrypted, $ivLength, -16 );
+			$decrypted = openssl_decrypt( $encrypted, 'aes-256-gcm', $encryptionKey,
+			                              OPENSSL_RAW_DATA, $iv, $tag, '' );
+			if ( is_string( $decrypted ) )
+			{
+				return $decrypted;
+			}
+		}
+		return $data;
+	}
+
+	function dataEncrypt( $data )
+	{
+		if ( ! function_exists( 'openssl_cipher_iv_length' ) )
+		{
+			return $data;
+		}
+		$encryptionKey = $this->getSystemSetting( 'encryption-key' );
+		$iv = random_bytes( openssl_cipher_iv_length( 'aes-256-gcm' ) );
+		$encrypted = openssl_encrypt( $data, 'aes-256-gcm', $encryptionKey,
+		                              OPENSSL_RAW_DATA, $iv, $tag, '', 16 );
+		if ( ! is_string( $encrypted ) )
+		{
+			return $data;
+		}
+		return '1/' . base64_encode( $iv . $encrypted . $tag );
 	}
 
 
@@ -665,6 +758,41 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
+	function getPackMgmtModule( $randoField, $checkMethods = [] )
+	{
+		if ( ! $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
+		{
+			return [ false, false ];
+		}
+		$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
+		foreach ( $checkMethods as $method )
+		{
+			if ( ! method_exists( $packMgmt, $method ) )
+			{
+				return [ false, false ];
+			}
+		}
+		$packMgmtCat = false;
+		if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) )
+		{
+			if ( $packMgmt->hasMinimPackCategory( $randoField ) )
+			{
+				$packMgmtCat = $randoField;
+			}
+			elseif ( $packMgmt->hasMinimPackCategory( '' ) )
+			{
+				$packMgmtCat = '';
+			}
+		}
+		if ( $packMgmtCat === false )
+		{
+			return [ false, false ];
+		}
+		return [ $packMgmt, $packMgmtCat ];
+	}
+
+
+
 	function getRandomization( $recordID )
 	{
 		// Check that the randomization event/field is defined.
@@ -745,7 +873,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$irStratEvent = $listIRStratEvents[$i];
 				$irStratField = $listIRStratFields[$i];
-				if ( $infoNewRecord[$irStratEvent][$irStratField] == '' )
+				if ( $manualCode === false && $infoNewRecord[$irStratEvent][$irStratField] == '' )
 				{
 					return $this->logRandoFailure( $this->tt( 'rando_msg_field_missing',
 					                                          $irStratField ), $newRecordID );
@@ -769,7 +897,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			{
 				$stratEvent = $listStratEvents[$i];
 				$stratField = $listStratFields[$i];
-				if ( $infoNewRecord[$stratEvent][$stratField] == '' )
+				if ( $manualCode === false && $infoNewRecord[$stratEvent][$stratField] == '' )
 				{
 					return $this->logRandoFailure( $this->tt( 'rando_msg_strat_missing',
 					                                          $stratField ), $newRecordID );
@@ -862,7 +990,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				}
 			}
 		}
-		if ( $minMode < 0 )
+		if ( $manualCode === false && $minMode < 0 )
 		{
 			return $this->logRandoFailure( $this->tt( 'rando_msg_mmode_missing', $modeField ),
 			                               $newRecordID );
@@ -895,7 +1023,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$minEvent = $listMinEvents[$i];
 			$minField = $listMinFields[$i];
 			$minValue = $infoNewRecord[$minEvent][$minField];
-			if ( $minValue == '' )
+			if ( $manualCode === false && $minValue == '' )
 			{
 				return $this->logRandoFailure( $this->tt( 'rando_msg_minim_missing', $minField ),
 				                               $newRecordID );
@@ -1046,10 +1174,10 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			$listRandoProportional =
 					array_merge( $listRandoProportional, array_fill( 0, $ratio, $code ) );
 		}
-		if ( $manualCode !== false )
+		if ( $manualCode !== false && substr( $manualCode, 0, 1 ) == 'a' )
 		{
 			// Do the manual randomization if requested.
-			$randoCode = $manualCode;
+			$randoCode = substr( $manualCode, 1 );
 			$randomApplied['details'] = $this->tt( 'diag_manual' );
 		}
 		elseif ( $initialRandom != '' && $strataRandoNum <= $initialRandom )
@@ -1122,34 +1250,37 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		// request a pack for the chosen allocation.
 		$packField = '';
 		$packExtraData = [];
-		if ( $this->isModuleEnabled( 'pack_management', $this->getProjectId() ) )
+		list( $packMgmt, $packMgmtCat ) =
+			$this->getPackMgmtModule( $randoField, [ 'getMinimPackField', 'assignMinimPack' ] );
+		if ( $packMgmt !== false )
 		{
-			$packMgmt = \ExternalModules\ExternalModules::getModuleInstance( 'pack_management' );
-			if ( method_exists( $packMgmt, 'hasMinimPackCategory' ) &&
-			     $packMgmt->hasMinimPackCategory() &&
-			     method_exists( $packMgmt, 'getMinimPackField' ) &&
-			     method_exists( $packMgmt, 'assignMinimPack' ) )
+			// Get the field name for the allocation pack ID.
+			$packField = $packMgmt->getMinimPackField( $packMgmtCat );
+			if ( $packField !== null )
 			{
-				// Get the field name for the allocation pack ID.
-				$packField = $packMgmt->getMinimPackField();
-				if ( $packField !== null )
+				// Re-obtain the codes from the list of adjusted minimization totals,
+				// and prepend the selected randomization code.
+				$listAdjustedCodes = array_keys( $listAdjustedTotals );
+				array_unshift( $listAdjustedCodes, $randoCode );
+				// For manual randomization by pack ID, set the pack ID.
+				$packID = null;
+				if ( $manualCode !== false && substr( $manualCode, 0, 1 ) == 'p' )
 				{
-					// Re-obtain the codes from the list of adjusted minimization totals,
-					// and prepend the selected randomization code.
-					$listAdjustedCodes = array_keys( $listAdjustedTotals );
-					array_unshift( $listAdjustedCodes, $randoCode );
-					// Get the allocation pack details.
-					$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes );
-					// If false returned, a pack could not be assigned.
-					if ( $infoPack === false )
-					{
-						return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ),
-						                               $newRecordID );
-					}
-					$packID = $infoPack['packID'];
-					$randoCode = $infoPack['randoCode'];
-					$packExtraData = $infoPack['extraData'];
+					$packID = substr( $manualCode, 1 );
+					$randomApplied = [ 'initial' => false, 'factor' => null, 'threshold' => null,
+					                   'values' => [], 'details' => $this->tt( 'diag_manual' ) ];
 				}
+				// Get the allocation pack details.
+				$infoPack = $packMgmt->assignMinimPack( $newRecordID, $listAdjustedCodes,
+				                                        $packMgmtCat, $packID );
+				// If false returned, a pack could not be assigned.
+				if ( $infoPack === false )
+				{
+					return $this->logRandoFailure( $this->tt( 'rando_msg_no_pack' ), $newRecordID );
+				}
+				$packID = $infoPack['packID'];
+				$randoCode = $infoPack['randoCode'];
+				$packExtraData = $infoPack['extraData'];
 			}
 		}
 
@@ -1285,7 +1416,25 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData['pack_id'] = $packID;
 				$diagData['pack_new_code'] = ( $randoCode != $listAdjustedCodes[0] );
 			}
-			$diagData = json_encode( $diagData );
+			// Encrypt the diagnostic data unless *only* unencrypted diagnostics already exist.
+			$dataTable = method_exists( '\REDCap', 'getDataTable' )
+			             ? \REDCap::getDataTable( $this->getProjectId() ) : ( 'redcap' . '_data' );
+			$diagEncCheck = $this->query( 'SELECT ( SELECT count(*) FROM ' . $dataTable . ' WHERE' .
+			                              ' project_id = ? AND field_name = ? AND length(`value`)' .
+			                              ' > 1 AND left(`value`,1) = \'{\' ) AS un, ( SELECT ' .
+			                              'count(*) FROM ' . $dataTable . ' WHERE project_id = ? ' .
+			                              'AND field_name = ? AND length(`value`) > 1 AND ' .
+			                              'left(`value`,1) <> \'{\' ) AS enc',
+			                              [ $this->getProjectId(), $diagField,
+			                                $this->getProjectId(), $diagField ] )->fetch_assoc();
+			if ( $diagEncCheck['enc'] > 0 || $diagEncCheck['un'] == 0 )
+			{
+				$diagData = $this->dataEncrypt( json_encode( $diagData ) );
+			}
+			else
+			{
+				$diagData = json_encode( $diagData );
+			}
 		}
 
 		// Save the randomization code to the record.
@@ -1353,6 +1502,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 		if ( $this->getProjectID() === null )
 		{
+			$encryptionKey = $this->getSystemSetting( 'encryption-key' );
+			if ( $encryptionKey == '' || strlen( base64_decode( $encryptionKey ) ) != 32 )
+			{
+				return $this->tt( 'validate_setting_encryption_key' );
+			}
 			return null;
 		}
 

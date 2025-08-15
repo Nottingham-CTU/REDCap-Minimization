@@ -239,6 +239,10 @@ performed, for a specified number of records and runs. The diagnostic data from 
 be saved in the file repository. This feature can be useful to verify that the minimization will
 work as expected.
 
+*The parameters used for the test run will also be saved to a file in the file repository. If you
+want to redo a test run with the same parameters, you can download the* `params` *file, then drag
+and drop it onto the* Perform Test Runs *form to fill it in with those parameters.*
+
 
 
 ## Randomization algorithm
@@ -260,7 +264,7 @@ The algorithm used for minimization is as follows:
     variable values for the record to be randomized.
     * The randomization will fail if any of the minimization variables for the record to be
       randomized are empty.
-4. For each allocation, set the minimization total to 0.
+4.  For each allocation, set the minimization total to 0.
 5.  For each record in the strata, get the value for each minimization variable. Compare the value
     with the value in the record to be randomized. If the values match, increment by 1 the value of
     the minimization total which corresponds to the allocation of the record in the strata.
@@ -304,9 +308,26 @@ The algorithm used for minimization is as follows:
     requested for each of the minimized allocations in turn until one is available, unless the
     minimization pack category has been set up to prohibit randomization in the absence of a first
     preference pack.
+    * If a minimization pack category is configured for the specific randomization field it will be
+      used, otherwise the minimization pack category without a randomization field specified will be
+      used (if one is configured).
     * If packs are assigned to DAGs, any pack used must come from the same DAG as the record.
     * Randomization is always prohibited if there are no packs available.
 
 The fake allocation (if a field for this has been specified) is picked at random from the
 proportional list. This process is separate from the real randomization allocation.
 
+
+## System-level configuration options
+
+### Encryption key
+The value for this setting will be automatically generated and is used to encrypt the diagnostic
+output data, if a field for diagnostic output has been specified. This data is thus kept unreadable
+within the project except when using the *Download Minimization Diagnostic* option.
+
+*There should normally be no need to change the encryption key*, unless you need multiple servers to
+use the same key because you are moving/sharing data between them. ***Do not change the encryption
+key after randomizations with diagnostic output have been performed.***
+
+Note that projects which already contain unencrypted diagnostic output (from earlier versions of
+this module) will continue to have diagnostic output saved unencrypted.

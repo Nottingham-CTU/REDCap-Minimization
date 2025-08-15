@@ -12,13 +12,18 @@
 		}
 	],
 	"permissions" : [
+		"redcap_module_system_enable",
 		"redcap_every_page_before_render",
 		"redcap_every_page_top",
 		"redcap_data_entry_form",
 		"redcap_save_record"
 	],
 	"framework-version" : 6,
-	"compatibility" : { "redcap-version-min" : "10.6.0" },
+	"compatibility" : {
+		"redcap-version-min" : "10.6.0",
+		"php-version-min" : "7.1.0",
+		"php-version-max" : "8.99.99"
+	},
 	"links" : {
 		"project" : [
 			{
@@ -35,6 +40,14 @@
 			}
 		]
 	},
+	"system-settings" : [
+		{
+			"key" : "encryption-key",
+			"name" : "Encryption key",
+			"tt_name" : "setting_encryption_key",
+			"type" : "text"
+		}
+	],
 	"project-settings" : [
 		{
 			"key" : "rando-event",

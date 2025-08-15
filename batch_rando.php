@@ -190,14 +190,13 @@ echo '<script type="text/javascript">',
 
 ?>
 
-<div class="projhdr"><i class="far fa-list-alt"></i> <?php echo $module->tt('batch_title'); ?></div>
+<div class="projhdr"><i class="far fa-list-alt"></i> <?php echo $module->tt('testrun_title'); ?></div>
 
 <?php
 if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0', '>=' ) )
 {
 ?>
 
-<p>&nbsp;</p>
 <form method="post" id="rando-runs-frm">
  <table class="dataTable cell-border no-footer">
   <thead>
@@ -323,6 +322,65 @@ if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0',
   </tbody>
  </table>
 </form>
+<?php
+	if ( $testRunStatus === false )
+	{
+?>
+<script type="text/javascript">
+  $('#rando-runs-frm').on('drop',function(ev)
+  {
+    ev.preventDefault()
+    var vFiles = ev.originalEvent.target.files || ev.originalEvent.dataTransfer.files
+    if ( typeof( vFiles[0].type ) == 'string' && vFiles[0].type == 'application/json' )
+    {
+      var vReader = new FileReader()
+      vReader.onload = function()
+      {
+        var vData = JSON.parse(vReader.result)
+        if ( typeof( vData.records ) == 'number' )
+        {
+          $('[name="testrun_records"]').val( vData.records )
+        }
+        if ( typeof( vData.runs ) == 'number' )
+        {
+          $('[name="testrun_runs"]').val( vData.runs )
+        }
+        if ( typeof( vData.testdata ) == 'object' )
+        {
+          for ( var i = 0; i < vData.testdata.length; i++ )
+          {
+            if ( i > 0 && $('[name="testrun_field[]"]').length <= i )
+            {
+              $('#rando-runs-frm a').trigger('click')
+            }
+            var vFieldData = vData.testdata[i]
+            if ( typeof( vFieldData.event ) == 'string' &&
+                 $('[name="testrun_event[]"]').length > 0 )
+            {
+              $('[name="testrun_event[]"]').slice(i,i+1).val( vFieldData.event )
+            }
+            if ( typeof( vFieldData.field ) == 'string' )
+            {
+              $('[name="testrun_field[]"]').slice(i,i+1).val( vFieldData.field )
+            }
+            if ( typeof( vFieldData.values ) == 'object' )
+            {
+              $('[name="testrun_values[]"]').slice(i,i+1).val( vFieldData.values.join('\n') )
+            }
+          }
+        }
+      }
+      vReader.readAsText(vFiles[0])
+    }
+  })
+  $('#rando-runs-frm').on('dragover',function(ev)
+  {
+    ev.preventDefault()
+  })
+</script>
+<?php
+	}
+?>
 <p>&nbsp;</p>
 <hr style="width:95%">
 <p>&nbsp;</p>
@@ -333,6 +391,8 @@ if ( $isDev && $canTestRun && \REDCap::versionCompare( REDCAP_VERSION, '12.5.0',
 if ( $testRunStatus === false )
 {
 ?>
+
+<div class="projhdr"><i class="far fa-list-alt"></i> <?php echo $module->tt('batch_title'); ?></div>
 
 <form method="post" id="batch-rando-frm">
  <table class="dataTable cell-border no-footer">
@@ -408,7 +468,8 @@ if ( $testRunStatus === false )
 			}
 			if ( $diagField != '' )
 			{
-				$diag = json_decode( $infoRecord[$randoEvent][$diagField], true );
+				$diag = json_decode( $module->dataDecrypt( $infoRecord[$randoEvent][$diagField] ),
+				                     true );
 				$details .= "\n\n" . $module->tt('batch_rando_num') . ': ' . $diag['num'];
 				if ( $diag['stratify'] )
 				{
