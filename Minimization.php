@@ -1333,7 +1333,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData['strata_values'] = [];
 				foreach ( $listStratValues as $eventNum => $infoStratEvent )
 				{
-					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					if ( self::$listTREvents === null )
+					{
+						$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					}
+					else
+					{
+						$eventName = is_array( self::$listTREvents )
+						             ? self::$listTREvents[ $eventNum ] : false;
+					}
 					if ( $eventName != '' )
 					{
 						$eventName .= '.';
