@@ -59,12 +59,152 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 	function redcap_every_page_before_render( $project_id )
 	{
-		// Stop here if not in a project or not on a data entry page.
-		if ( $project_id === null ||
-		     substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 10 ) != 'DataEntry/' )
+		// Stop here if not in a project.
+		if ( $project_id === null )
 		{
 			return;
 		}
+
+		// If renaming an event.
+		if ( isset( $_SESSION['extmod_minimization_event_rename'] ) )
+		{
+			// Get the event ID and old name from the session, get the new event name.
+			$targetEventID = $_SESSION['extmod_minimization_event_rename'][0];
+			$targetEventOld = $_SESSION['extmod_minimization_event_rename'][1];
+			$targetEvent = $GLOBALS['Proj']->getUniqueEventNames( $targetEventID );
+			unset( $_SESSION['extmod_minimization_event_rename'] );
+			// Get DB lock
+			$this->dbGetLock();
+			// Get the minimization config data.
+			$minimConfig = $this->getProjectSetting('minim-config');
+			if ( $minimConfig === null || $targetEventOld == $targetEvent )
+			{
+				// If nothing to do just release the DB lock.
+				$this->dbReleaseLock();
+			}
+			else
+			{
+				// Check each minimization config key for the event name.
+				$minimConfig = json_decode( $minimConfig, true );
+				$minimConfigKeys = array_keys( $minimConfig );
+				foreach ( $minimConfigKeys as $k )
+				{
+					if ( substr( $k . '/', 0, strlen( $targetEventOld ) + 1 ) ==
+					     $targetEventOld . '/' )
+					{
+						// Replace the old event name with the new one.
+						$minimConfig[ str_replace( $targetEventOld . '/', $targetEvent . '/',
+						                           $k ) ] = $minimConfig[ $k ];
+						unset( $minimConfig[ $k ] );
+					}
+				}
+				// Write the updated minimization config to the DB.
+				$this->setProjectSetting( 'minim-config',
+				                          json_encode( $minimConfig, JSON_UNESCAPED_SLASHES ) );
+				// Release DB lock
+				$this->dbReleaseLock();
+			}
+		}
+		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 29 ) ==
+		     'Design/define_events_ajax.php' && $_GET['action'] == 'edit' )
+		{
+			// If an event edit is submitted, note the event ID/name before update, on the next page
+			// load the update will be completed and we will have the new event name.
+			$targetEvent = $GLOBALS['Proj']->getUniqueEventNames( $_POST['event_id'] );
+			$_SESSION['extmod_minimization_event_rename'] = [ $_POST['event_id'], $targetEvent ];
+			return;
+		}
+
+		// If submitting a new randomization setup or erasing a randomization setup.
+		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 42 ) ==
+		     'Randomization/save_randomization_setup.php' )
+		{
+			if ( isset( $_POST['action'] ) && $_POST['action'] == 'erase' &&
+			     preg_match( '/^[1-9][0-9]*$/', $_POST['rid'] ) )
+			{
+				$infoRand = $this->query( 'SELECT target_field, target_event FROM ' .
+				                          'redcap_randomization WHERE rid = ? AND project_id = ?',
+				                          [ $_POST['rid'], $this->getProjectId() ] )->fetch_assoc();
+				$targetEvent = $GLOBALS['Proj']->getUniqueEventNames( $infoRand['target_event'] );
+				$minimKey = $targetEvent . '/' . $infoRand['target_field'];
+				// Get DB lock
+				$this->dbGetLock();
+				// Get the minimization config data.
+				$minimConfig = $this->getProjectSetting('minim-config');
+				if ( $minimConfig === null )
+				{
+					// If for some reason the minimization config does not exist just release the
+					// DB lock and return here.
+					$this->dbReleaseLock();
+					return;
+				}
+				else
+				{
+					$minimConfig = json_decode( $minimConfig, true );
+				}
+				// Remove the current minimization config entry.
+				unset( $minimConfig[ $minimKey ] );
+				// If all the minimization configs are gone remove the setting otherwise save the
+				// updated setting.
+				if ( empty( $minimConfig ) )
+				{
+					$this->removeProjectSetting('minim-config');
+				}
+				else
+				{
+					$this->setProjectSetting( 'minim-config',
+					                          json_encode( $minimConfig, JSON_UNESCAPED_SLASHES ) );
+				}
+				// Release DB lock
+				$this->dbReleaseLock();
+			}
+			elseif ( ! isset( $_POST['action'] ) )
+			{
+				if ( isset( $_POST['use_minim'] ) )
+				{
+					unset( $_POST['use_minim'] );
+					$_SESSION['extmod_minimization_setup'] = true;
+				}
+			}
+			return;
+		}
+		if ( isset( $_SESSION['extmod_minimization_setup'] ) )
+		{
+			unset( $_SESSION['extmod_minimization_setup'] );
+			if ( isset( $_GET['rid'] ) && preg_match( '/^[1-9][0-9]*$/', $_GET['rid'] ) )
+			{
+				// Get the event/field name for the randomization config.
+				$infoRand = $this->query( 'SELECT target_field, target_event FROM ' .
+				                          'redcap_randomization WHERE rid = ? AND project_id = ?',
+				                          [ $_GET['rid'], $this->getProjectId() ] )->fetch_assoc();
+				$targetEvent = $GLOBALS['Proj']->getUniqueEventNames( $infoRand['target_event'] );
+				$minimKey = $targetEvent . '/' . $infoRand['target_field'];
+				// Get DB lock.
+				$this->dbGetLock();
+				// Create an entry in the minimization config.
+				$minimConfig = $this->getProjectSetting('minim-config');
+				if ( $minimConfig === null )
+				{
+					$minimConfig = [];
+				}
+				else
+				{
+					$minimConfig = json_decode( $minimConfig, true );
+				}
+				$minimConfig[ $minimKey ] = [];
+				// Save minimization config to database and release DB lock.
+				$this->setProjectSetting( 'minim-config',
+				                          json_encode( $minimConfig, JSON_UNESCAPED_SLASHES ) );
+				$this->dbReleaseLock();
+			}
+		}
+
+		// Stop here if not on a data entry page.
+		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 10 ) != 'DataEntry/' )
+		{
+			return;
+		}
+
 		// If the randomization event/field is defined, ensure that REDCap treats the field as
 		// *not* required, even if it is marked as required. This will stop REDCap from complaining
 		// about a lack of value while waiting on this module to populate the field. Do the same for
@@ -144,6 +284,33 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 <?php
 
 
+		}
+
+		if ( substr( PAGE_FULL, strlen( APP_PATH_WEBROOT ), 14 ) == 'Randomization/' &&
+		     strpos( PAGE_FULL, 'dashboard.php') === false && isset( $_GET['rid'] ) )
+		{
+			$minimConfig = null;
+			if ( preg_match( '/^[1-9][0-9]*$/', $_GET['rid'] ) )
+			{
+				$minimConfig = $this->getProjectSetting('minim-config');
+				if ( $minimConfig !== null )
+				{
+					// Get the event/field name for the randomization config.
+					$minimKey = $this->getMinimConfigKey( $_GET['rid'] );
+					// Get the minimization config for this randomization config.
+					$minimConfig = json_decode( $minimConfig, true );
+					if ( preg_match( '/^[1-9][0-9]*$/', $_GET['rid'] ) &&
+					     isset( $minimConfig[ $minimKey ] ) )
+					{
+						$minimConfig = $minimConfig[ $minimKey ];
+					}
+					else
+					{
+						$minimConfig = null;
+					}
+				}
+			}
+			$this->provideMinimSetup( $minimConfig );
 		}
 	}
 
@@ -395,6 +562,30 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Perform the randomization when triggered.
+
+	function redcap_module_randomize_record( $projectID, $rID, $record, $stratVars, $groupID )
+	{
+		$randoConfig = \Randomization::getRandomizationAttributes( $rID );
+		$eventName = $GLOBALS['Proj']->getUniqueEventNames( $randoConfig['targetEvent'] );
+		$minimConfigID = $eventName . '/' . $randoConfig['targetField'];
+		$minimConfig = $this->getProjectSetting('minim-config');
+		if ( $minimConfig === null )
+		{
+			// There is no minimization config, so REDCap should continue with block randomization.
+			return null;
+		}
+		$minimConfig = json_decode( $minimConfig, true );
+		if ( ! isset( $minimConfig[ $minimConfigID ] ) )
+		{
+			// This randomization config does not have a corresponding minimization config, so
+			// REDCap should continue with block randomization.
+			return null;
+		}
+	}
+
+
+
 	// Perform randomization on form submission, if configured.
 	function redcap_save_record( $projectID, $record, $instrument, $eventID, $groupID,
 	                             $surveyHash, $responseID, $repeatInstance )
@@ -520,6 +711,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			return $data;
 		}
 		return '1/' . base64_encode( $iv . $encrypted . $tag );
+	}
+
+
+
+	// Functions to get/release database lock.
+	public function dbGetLock()
+	{
+		$this->query( 'DO GET_LOCK(?,60)', [ $GLOBALS['db'] . '.minimization' ] );
+	}
+
+	public function dbReleaseLock()
+	{
+		$this->query( 'DO RELEASE_LOCK(?)', [ $GLOBALS['db'] . '.minimization' ] );
 	}
 
 
@@ -754,6 +958,19 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 		return null;
+	}
+
+
+
+	// Get the minimization config key for a randomization config ID.
+
+	function getMinimConfigKey( $rid )
+	{
+		$infoRand = $this->query( 'SELECT target_field, target_event FROM ' .
+		                          'redcap_randomization WHERE rid = ? AND project_id = ?',
+		                          [ $rid, $this->getProjectId() ] )->fetch_assoc();
+		$targetEvent = $GLOBALS['Proj']->getUniqueEventNames( $infoRand['target_event'] );
+		return $targetEvent . '/' . $infoRand['target_field'];
 	}
 
 
@@ -1333,7 +1550,15 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData['strata_values'] = [];
 				foreach ( $listStratValues as $eventNum => $infoStratEvent )
 				{
-					$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					if ( self::$listTREvents === null )
+					{
+						$eventName = \REDCap::getEventNames( true, true, $eventNum );
+					}
+					else
+					{
+						$eventName = is_array( self::$listTREvents )
+						             ? self::$listTREvents[ $eventNum ] : false;
+					}
 					if ( $eventName != '' )
 					{
 						$eventName .= '.';
@@ -1493,6 +1718,143 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID,
 		                   null, $this->getProjectId() );
 		return $description;
+	}
+
+
+
+	// Provide JavaScript to add the Minimization options to the Randomization setup page.
+
+	function provideMinimSetup( $config )
+	{
+		$isNew = ( $_GET['rid'] == 'new' );
+		$tt = [];
+		foreach ( [ 'setting_use_minim', 'setting_use_minim_desc', 'setting_hdr_step2',
+		            'setting_hdr_step3', 'setting_hdr_step5', 'setting_field', 'setting_logic',
+		            'setting_logic_tt_off', 'setting_logic_tt_on',
+		            'setting_minim_vars', 'setting_minim_codes', 'setting_rando_code',
+		            'setting_rando_desc', 'setting_rando_ratio', 'setting_random_factor',
+		            'setting_pack_management', 'setting_rando_submit_status_reset' ] as $l )
+		{
+			$tt[ $l ] = $this->tt( $l );
+		}
+		$tt = json_encode( $tt );
+?>
+<script type="text/javascript">
+  showProgress(true)
+  $(function()
+  {
+    var vTT = <?php echo $tt, "\n"; ?>
+    var vSubmitDiv = $('#saveModelBtn').closest('div')
+    var vMinimDiv = $('<div style="margin:10px 0 0"></div>')
+    vSubmitDiv.before(vMinimDiv)
+    vMinimDiv.append('<span class="font-weight-bold">' + vTT.setting_use_minim + '</span>&nbsp; ')
+    var vChooseMinim = $('<input type="checkbox" name="use_minim" value="1">')
+    vChooseMinim.prop('checked',<?php echo $config === null ? 'false' : 'true'; ?>)
+    vChooseMinim.prop('disabled',<?php echo $isNew ? 'false' : 'true'; ?>)
+    vMinimDiv.append(vChooseMinim)
+    var vMinimDiv2 = $('<div style="margin-left:15px"></div>')
+    vMinimDiv2.append(vTT.setting_use_minim_desc)
+    vMinimDiv.append(vMinimDiv2)
+    if (<?php echo $config === null ? 'false' : 'true'; ?>)
+    {
+      setInterval( function()
+      {
+        ['minim_var_logic', 'alloc_logic'].forEach( function( vPre )
+        {
+          var vNum = $('[data-minim-name^="' + vPre + '_"]').length
+          for ( var vI = 0; vI < vNum; vI++ )
+          {
+            if ( $('#rc-ace-editor-dialog').length == 0 )
+            {
+              $('[data-minim-name="' + vPre + '_' + vI + '"]')
+                .removeAttr('id').removeAttr('style')
+            }
+            if ( $('[data-minim-name="' + vPre + '_' + vI + '"]').val() == '' )
+            {
+              $('[data-minim-toggle="' + vPre + '_' + vI + '"] i')
+                .removeClass('fa-toggle-on').addClass('fa-toggle-off')
+                .attr('title', vTT.setting_logic_tt_off)
+            }
+            else
+            {
+              $('[data-minim-toggle="' + vPre + '_' + vI + '"] i')
+                .removeClass('fa-toggle-off').addClass('fa-toggle-on')
+                .attr('title', vTT.setting_logic_tt_on)
+            }
+          }
+        })
+      }, 2000 )
+      var vLogicBtn = function ( vName )
+      {
+        return '<a data-minim-toggle="' + vName + '" href="#" onclick="openLogicEditor($(\'' +
+               '[data-minim-name=&quot;' + vName + '&quot;]\'))"><i class="fas fa-toggle-off">' +
+               '</i></a><input type="hidden" data-minim-name="' + vName + '">'
+      }
+      var vStep2Div = $('<div id="step2div-minim"></div>')
+      var vStep3Div = $('<div id="step3div-minim"></div>')
+      var vStep5Div = $('<div id="step5div-minim"></div>')
+      vStep2Div.attr('class',$('#step2div').attr('class'))
+      vStep2Div.attr('style',$('#step2div').attr('style'))
+      vStep3Div.attr('class',$('#step3div').attr('class'))
+      vStep3Div.attr('style',$('#step3div').attr('style'))
+      vStep5Div.attr('class',$('#step3div').attr('class'))
+      vStep5Div.attr('style',$('#step3div').attr('style'))
+      $('#step2div, #step3div, #extrnd-step5div').css('display','none')
+      $('head').append('<style type="text/css">.minim-tbl{margin-bottom:10px}.minim-tbl th, ' +
+                       '.minim-tbl td{border:solid 1px #000;padding:3px;}.minim-tbl ' +
+                       'input[type="number"], [data-minim-name^="alloc_code_"]{width:70px}</style>')
+      vStep2Div.append('<p style="color:#800000;font-weight:bold;font-size:13px;">' +
+                       vTT.setting_hdr_step2 + '</p>')
+      vStep3Div.append('<p style="color:#800000;font-weight:bold;font-size:13px;">' +
+                       vTT.setting_hdr_step3 + '</p>')
+      vStep5Div.append('<p style="color:#800000;font-weight:bold;font-size:13px;">' +
+                       vTT.setting_hdr_step5 + '</p>')
+      $('#step2div').after( vStep2Div )
+      $('#step3div').after( vStep3Div )
+      $('#step4div').after( vStep5Div )
+      vStep2Div.append('<table class="minim-tbl"><tr><th colspan="2">' +
+                       vTT.setting_minim_vars + '</th></tr><tr><th>' + vTT.setting_field +
+                       '</th><th>' + vTT.setting_logic + '</th></tr><tr><td></td>' +
+                       '<td style="text-align:center">' + vLogicBtn('minim_var_logic_0') + '</td>' +
+                       '</tr></table>')
+      vStep2Div.append('<table class="minim-tbl"><tr><th colspan="4">' +
+                       vTT.setting_minim_codes + '</th></tr><tr><th>' + vTT.setting_rando_code +
+                       '</th><th>' + vTT.setting_rando_desc + '</th><th>' + vTT.setting_rando_ratio +
+                       '</th><th>' + vTT.setting_logic + '</th></tr><tr><td><input type="text" ' +
+                       'data-minim-name="alloc_code_0"></td><td><input type="text" ' +
+                       'data-minim-name="alloc_desc_0"></td><td>' +
+                       '<input type="number" data-minim-name="alloc_ratio_0" value="1" min="1">' +
+                       '</td><td style="text-align:center">' + vLogicBtn('alloc_logic_0') + '</td>' +
+                       '</tr></table>')
+      vStep3Div.append('<p>' + vTT.setting_random_factor + '</p>')
+      vStep3Div.append('<p>' + vTT.setting_pack_management + '</p>')
+      $('#realtime-form')
+        .closest('p').after('<p style="margin-left:120px"><label><input type="checkbox"> ' +
+                            vTT.setting_rando_submit_status_reset + '</label></p>')
+    }
+    showProgress(false)
+/*    if (<?php echo $isNew ? 'true' : 'false'; ?>)
+    {
+      var vOldChkVarsSel = window.checkVarsSelected
+      window.checkVarsSelected = function()
+      {
+        var vResult = vOldChkVarsSel()
+        if ( vResult )
+        {
+          $.ajax( { url : '<?php echo $this->getUrl( 'ajax_submit_config.php' ); ?>',
+                    method : 'POST',
+                    data : { 'new' : '1',
+                             'token' : $('[name=redcap_csrf_token]')[0].value },
+                    headers : { 'X-RC-Min-Conf' : '1' },
+                    dataType : 'json'
+                  } )
+        }
+        return vResult
+      }
+    }*/
+  })
+</script>
+<?php
 	}
 
 
