@@ -527,7 +527,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	// Functions to get/release database lock.
 	public function dbGetLock()
 	{
-		$this->query( 'DO GET_LOCK(?,180)',
+		$this->query( 'DO GET_LOCK(?,300)',
 		              [ $GLOBALS['db'] . '.minimization.p' . $this->getProjectId() ] );
 	}
 
@@ -1464,6 +1464,22 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 				$diagData = json_encode( $diagData );
 			}
 		}
+
+
+		// Re-fetch the randomization field value for the record, to check it has not been already
+		// randomized by another process (this is unlikely because a concurrent process should have
+		// been kept waiting by the lock on the database).
+		$checkData = \REDCap::getData( [ 'project_id' => $this->getProjectId(),
+		                                 'return_format' => 'array',
+		                                 'records' => $newRecordID,
+		                                 'fields' => $randoField,
+		                                 'combine_checkbox_values' => true,
+		                                 'exportDataAccessGroups' => true ] );
+		if ( $checkData[$newRecordID][$randoEvent][$randoField] != '' )
+		{
+			return $this->logRandoFailure( $this->tt('rando_msg_performed'), $newRecordID );
+		}
+
 
 		// Save the randomization code to the record.
 		$inputData[$newRecordID][$randoEvent][$randoField] = $randoCode;
