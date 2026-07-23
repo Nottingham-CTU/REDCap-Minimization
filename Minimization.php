@@ -524,6 +524,21 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 
 
 
+	// Functions to get/release database lock.
+	public function dbGetLock()
+	{
+		$this->query( 'DO GET_LOCK(?,300)',
+		              [ $GLOBALS['db'] . '.minimization.p' . $this->getProjectId() ] );
+	}
+
+	public function dbReleaseLock()
+	{
+		$this->query( 'DO RELEASE_LOCK(?)',
+		              [ $GLOBALS['db'] . '.minimization.p' . $this->getProjectId() ] );
+	}
+
+
+
 	// Cron job to perform test runs.
 	function doTestRuns( $infoCron )
 	{
@@ -831,6 +846,11 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			// disabled. Therefore this message is not written to the log.
 			return $this->tt('rando_msg_not_enable');
 		}
+
+
+		// Get the database lock (will be released by a call to logRandoFailure or upon successful
+		// randomization).
+		$this->dbGetLock();
 
 
 		// Check that the logic (if specified) is satisfied for this record.
@@ -1445,6 +1465,22 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			}
 		}
 
+
+		// Re-fetch the randomization field value for the record, to check it has not been already
+		// randomized by another process (this is unlikely because a concurrent process should have
+		// been kept waiting by the lock on the database).
+		$checkData = \REDCap::getData( [ 'project_id' => $this->getProjectId(),
+		                                 'return_format' => 'array',
+		                                 'records' => $newRecordID,
+		                                 'fields' => $randoField,
+		                                 'combine_checkbox_values' => true,
+		                                 'exportDataAccessGroups' => true ] );
+		if ( $checkData[$newRecordID][$randoEvent][$randoField] != '' )
+		{
+			return $this->logRandoFailure( $this->tt('rando_msg_performed'), $newRecordID );
+		}
+
+
 		// Save the randomization code to the record.
 		$inputData[$newRecordID][$randoEvent][$randoField] = $randoCode;
 		if ( $dateField != '' )
@@ -1489,6 +1525,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 			\REDCap::saveData( $this->getProjectId(), 'array', $inputExtraData,
 			                   'normal', 'YMD', 'flat');
 		}
+		$this->dbReleaseLock();
 		return true;
 	}
 
@@ -1500,6 +1537,7 @@ class Minimization extends \ExternalModules\AbstractExternalModule
 	{
 		\REDCap::logEvent( $this->tt('log_failure'), $description, null, $recordID,
 		                   null, $this->getProjectId() );
+		$this->dbReleaseLock();
 		return $description;
 	}
 
